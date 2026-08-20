@@ -1,0 +1,200 @@
+{
+  "result": {
+    "type": "agent_manifest_status",
+    "last_check_unix": 1787254865,
+    "last_result": "checked",
+    "manifests": [
+      {
+        "agent": "pi",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/pi.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "claude",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/claude.toml",
+        "source_kind": "remote",
+        "active_version": "2026.08.19.1",
+        "cached_remote_version": "2026.08.19.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "codex",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/codex.toml",
+        "source_kind": "remote",
+        "active_version": "2026.08.09.1",
+        "cached_remote_version": "2026.08.09.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "gemini",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/gemini.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "cursor",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/cursor.toml",
+        "source_kind": "remote",
+        "active_version": "2026.08.03.1",
+        "cached_remote_version": "2026.08.03.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "devin",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/devin.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.15.1",
+        "cached_remote_version": "2026.06.15.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "agy",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/agy.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.24.1",
+        "cached_remote_version": "2026.06.24.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "cline",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/cline.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "opencode",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/opencode.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "copilot",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/copilot.toml",
+        "source_kind": "remote",
+        "active_version": "2026.07.07.1",
+        "cached_remote_version": "2026.07.07.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "kimi",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/kimi.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "kiro",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/kiro.toml",
+        "source_kind": "remote",
+        "active_version": "2026.08.01.1",
+        "cached_remote_version": "2026.08.01.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "droid",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/droid.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "amp",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/amp.toml",
+        "source_kind": "remote",
+        "active_version": "2026.07.09.1",
+        "cached_remote_version": "2026.07.09.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "grok",
+        "source": "bundled",
+        "source_kind": "bundled",
+        "active_version": "2026.07.16.2",
+        "cached_remote_version": "2026.07.16.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865,
+        "warning": "ignored remote manifest /home/example/.local/state/herdr/agent-detection/remote/grok.toml because cached version 2026.07.16.1 is older than bundled 2026.07.16.2"
+      },
+      {
+        "agent": "hermes",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/hermes.toml",
+        "source_kind": "remote",
+        "active_version": "2026.07.24.1",
+        "cached_remote_version": "2026.07.24.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "kilo",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/kilo.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "qodercli",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/qodercli.toml",
+        "source_kind": "remote",
+        "active_version": "2026.06.10.1",
+        "cached_remote_version": "2026.06.10.1",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      },
+      {
+        "agent": "maki",
+        "source": "remote:/home/example/.local/state/herdr/agent-detection/remote/maki.toml",
+        "source_kind": "remote",
+        "active_version": "2026.07.09.2",
+        "cached_remote_version": "2026.07.09.2",
+        "local_override_shadowing_remote": false,
+        "remote_update_result": "current",
+        "remote_last_checked_unix": 1787254865
+      }
+    ]
+  }
+}

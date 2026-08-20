@@ -1,0 +1,15 @@
+herdr agent commands:
+  herdr agent list
+  herdr agent get <target>
+  herdr agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines N] [--format text|ansi] [--ansi]
+  herdr agent send-keys <target> <key> [key ...]
+  herdr agent prompt <target> <text> [--wait] [--until STATUS]... [--timeout MS]
+  herdr agent rename <target> <name>|--clear
+  herdr agent focus <target>
+  herdr agent wait <target> [--until STATUS]... [--timeout MS]
+  herdr agent attach <target> [--takeover]
+  herdr agent start <name> --kind KIND --pane ID [--timeout MS] [-- <agent-args...>]
+  herdr agent explain <target> [--json|--format text|json] [--verbose]
+  herdr agent explain --file PATH --agent LABEL [--json|--format text|json] [--verbose]
+  targets accept unique agent names and pane ids that currently host agents
+  kinds: pi|claude|codex|gemini|cursor|devin|agy|cline|omp|mastracode|opencode|copilot|kimi|kiro|droid|amp|grok|hermes|kilo|qodercli|maki

@@ -1,0 +1,37 @@
+{
+  "name": "herdr-a2a",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A2A v1.0 delegation layer for coding agents running under Herdr",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "herdr-a2a": "./dist/bridge/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "node --experimental-strip-types src/main.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:watch": "vitest",
+    "capture-contract": "node scripts/capture-contract.mjs",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^1.0.1",
+    "better-sqlite3": "^12.4.1",
+    "express": "^5.1.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

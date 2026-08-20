@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.herdr-a2a/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
