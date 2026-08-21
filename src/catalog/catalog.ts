@@ -1,4 +1,4 @@
-import type { AgentDescriptor, RuntimeDescriptor } from "../core/model.js";
+import type { AgentDescriptor, DiscoverySource, RuntimeDescriptor } from "../core/model.js";
 import type { AgentCatalog, Clock, EventSink, HerdrDiscovery, LaunchabilityResolver } from "../core/ports.js";
 import type { AgentInfo } from "../herdr/types.js";
 import { EVENTS } from "../observability/events.js";
@@ -35,11 +35,7 @@ export class AgentCatalogImpl implements AgentCatalog {
       ]);
       const manifests = new Map(manifestStatus.manifests.map((manifest) => [manifest.agent, manifest]));
       const integrationKinds = new Set(integrations);
-      const liveCounts = new Map<string, number>();
-      for (const agent of liveAgents) {
-        if (!agent.agent) continue;
-        liveCounts.set(agent.agent, (liveCounts.get(agent.agent) ?? 0) + 1);
-      }
+      const liveCounts = this.countLiveAgents(liveAgents);
 
       const runtimes: RuntimeDescriptor[] = await Promise.all(kinds.map(async (kind) => {
         const [launchability, manifest] = await Promise.all([this.opts.launchability.resolve(kind), Promise.resolve(manifests.get(kind))]);
@@ -85,15 +81,43 @@ export class AgentCatalogImpl implements AgentCatalog {
 
   async list(): Promise<AgentDescriptor[]> {
     await this.ensureFresh();
-    return this.descriptors ?? [];
+    return this.withLiveCounts(this.descriptors ?? []);
   }
 
   async get(name: string): Promise<AgentDescriptor | undefined> {
     await this.ensureFresh();
-    return this.descriptors?.find((entry) => entry.name === name);
+    const entry = this.descriptors?.find((candidate) => candidate.name === name);
+    return entry && (await this.withLiveCounts([entry]))[0];
   }
 
   private async ensureFresh(): Promise<void> {
     if (!this.descriptors || this.opts.clock.now().getTime() - this.refreshedAt >= this.opts.ttlMs) await this.refresh();
+  }
+
+  private countLiveAgents(liveAgents: AgentInfo[]): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const agent of liveAgents) {
+      if (!agent.agent) continue;
+      counts.set(agent.agent, (counts.get(agent.agent) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /**
+   * `runningInstances` is derived from the session cache, which is already
+   * kept live by Herdr's pane events (§41) — unlike manifests/launchability,
+   * it needs no TTL. Recomputing it on every read (independent of `refresh`'s
+   * TTL-gated probes) keeps a just-closed pane from reporting as running for
+   * up to `ttlMs` longer.
+   */
+  private async withLiveCounts(descriptors: AgentDescriptor[]): Promise<AgentDescriptor[]> {
+    const liveCounts = this.countLiveAgents(await this.opts.liveAgents());
+    return descriptors.map((entry) => {
+      const runningInstances = liveCounts.get(entry.runtimeKind) ?? 0;
+      if (runningInstances === entry.runtime.runningInstances) return entry;
+      const sources: DiscoverySource[] = entry.runtime.sources.filter((source) => source !== "herdr-session");
+      if (runningInstances > 0) sources.push("herdr-session");
+      return { ...entry, runtime: { ...entry.runtime, runningInstances, sources } };
+    });
   }
 }

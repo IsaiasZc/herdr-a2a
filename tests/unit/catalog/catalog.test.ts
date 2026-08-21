@@ -82,6 +82,25 @@ describe("catalog composition", () => {
     expect(descriptors.find((entry) => entry.name === "claude")?.runtime.runningInstances).toBe(1);
   });
 
+  test("reflects a pane close in runningInstances without waiting for the TTL", async () => {
+    let agents: AgentInfo[] = JSON.parse(await fixture("session-snapshot.json")).result.snapshot.agents;
+    const catalog = makeCatalog({
+      usage: await fixture("cli-agent-usage.txt"),
+      manifests: emptyManifests,
+      agents: [],
+      liveAgents: () => agents,
+    });
+    await catalog.refresh();
+    expect((await catalog.get("codex"))?.runtime.runningInstances).toBe(1);
+
+    // The session cache updates instantly on `pane.closed` — well inside the
+    // catalog's TTL, which is meant to bound expensive launchability probes,
+    // not this already-live count.
+    agents = agents.filter((agent) => agent.agent !== "codex");
+    expect((await catalog.get("codex"))?.runtime.runningInstances).toBe(0);
+    expect((await catalog.list()).find((entry) => entry.name === "codex")?.runtime.sources).not.toContain("herdr-session");
+  });
+
   test("resolves custom profiles without replacing discovered runtimes", async () => {
     const catalog = makeCatalog({
       usage: "kinds: runtime-a\n",
@@ -234,6 +253,7 @@ function makeCatalog(input: {
   onDiscovery?: () => void;
   launchable?: "yes" | "no" | "unknown" | (() => "yes" | "no" | "unknown");
   integrationUsage?: string;
+  liveAgents?: () => AgentInfo[];
 }, events = noEvents): AgentCatalogImpl {
   const discovery = new HerdrDiscoveryImpl({
     binPath: "/fake/herdr",
@@ -247,7 +267,7 @@ function makeCatalog(input: {
     discovery,
     launchability: { resolve: async () => ({ launchable: typeof input.launchable === "function" ? input.launchable() : input.launchable ?? "yes", reason: "test" }), invalidate: async () => {} },
     customRegistry: new CustomRegistry(input.profiles ?? {}),
-    liveAgents: () => input.agents,
+    liveAgents: input.liveAgents ?? (() => input.agents),
     eventSink: events,
     clock: clock(),
     ttlMs: 1_000,
