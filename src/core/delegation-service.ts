@@ -3,6 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { ERROR_CODES, fail } from "./errors.js";
 import { SYSTEM_IDENTITY, targetIdentity, toSnapshot } from "./identities.js";
 import { TERMINAL_TASK_STATES } from "./model.js";
+import { EVENTS } from "../observability/events.js";
 import type {
   AgentDescriptor,
   AgentIdentity,
@@ -66,14 +67,24 @@ export class HerdrDelegationService implements DelegationService {
     const caller = req.caller ?? this.opts.resolveCaller();
     const ctx = this.opts.callerContext();
 
+    // Precedence: the requesting orchestrator's OWN pane/tab (threaded in via
+    // transport headers, spec: multi-orchestrator tab targeting) beats the
+    // gateway's `callerContext()` fallback (live session focus, or — as a
+    // last resort — the gateway process's own frozen env). Two orchestrators
+    // delegating concurrently from different tabs must each land in their own
+    // tab, never wherever a single session-wide focus signal happens to be.
+    const paneId = req.callerPaneId ?? ctx.paneId;
+    const tabId = req.callerTabId ?? ctx.tabId;
+    const workspaceId = req.callerWorkspaceId ?? ctx.workspaceId;
+
     const live = await this.opts.spawn.resolveOrSpawn({
       descriptor,
       cwd,
       visibility,
       ...(model ? { model } : {}),
-      ...(ctx.paneId ? { callerPaneId: ctx.paneId } : {}),
-      ...(ctx.tabId ? { callerTabId: ctx.tabId } : {}),
-      ...(ctx.workspaceId ? { callerWorkspaceId: ctx.workspaceId } : {}),
+      ...(paneId ? { callerPaneId: paneId } : {}),
+      ...(tabId ? { callerTabId: tabId } : {}),
+      ...(workspaceId ? { callerWorkspaceId: workspaceId } : {}),
       ...(descriptor.profile?.args ? { args: descriptor.profile.args } : {}),
     });
 
@@ -193,6 +204,42 @@ export class HerdrDelegationService implements DelegationService {
         error: String(err),
       });
     }
+  }
+
+  /**
+   * Tears down the pane/process behind a *finished* task, on demand — never
+   * automatic (spec: an agent stays alive after completing so it can be
+   * inspected or reused; the orchestrator decides when it's really done with
+   * it, mirroring how a background subagent stays live until explicitly
+   * stopped). Requires `cancel` first if the task is still in flight, so
+   * `close` stays a pure teardown verb rather than an implicit interrupt.
+   */
+  async close(taskId: string): Promise<DelegatedTask> {
+    const task = await this.get(taskId);
+
+    if (!TERMINAL_TASK_STATES.has(task.state)) {
+      throw fail(
+        ERROR_CODES.TASK_NOT_TERMINAL,
+        `task ${taskId} is ${task.state}; cancel it first`,
+        { state: task.state },
+      );
+    }
+
+    if (!task.liveInstanceId) return task;
+
+    const others = await this.opts.tasks.listByInstance(task.liveInstanceId);
+    const stillActive = others.some((t) => t.id !== task.id && !TERMINAL_TASK_STATES.has(t.state));
+    if (stillActive) {
+      throw fail(
+        ERROR_CODES.INSTANCE_STILL_ACTIVE,
+        `the worker for task ${taskId} is still handling another active task`,
+        { instance: task.liveInstanceId },
+      );
+    }
+
+    await this.opts.spawn.release(task.liveInstanceId);
+    this.opts.events.emit(EVENTS.spawnReleased, { task_id: task.id, instance_id: task.liveInstanceId });
+    return task;
   }
 
   // -------------------------------------------------------------------------

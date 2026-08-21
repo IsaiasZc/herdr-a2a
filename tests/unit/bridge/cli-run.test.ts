@@ -343,3 +343,108 @@ describe("run: get / continue / cancel go through the durable task lookup, not a
     expect(calls).toEqual([`${BASE_URL}/tasks/ghost-task`]);
   });
 });
+
+describe("run: close is a direct gateway route, not an A2A call", () => {
+  it("close makes exactly one request: POST /tasks/:id/close, no agent client at all", async () => {
+    const io = collector();
+    const task = baseTask({
+      id: "task-9",
+      status: { state: TaskState.TASK_STATE_COMPLETED, message: undefined, timestamp: "t" },
+      metadata: { target: "codex" },
+    });
+    const { fetchImpl, calls } = fakeFetch({
+      "/tasks/task-9/close": () => jsonResponse({ agent: "codex", url: `${BASE_URL}/a2a/agents/codex`, task }),
+    });
+    let factoryCalls = 0;
+    const agentClientFactory: AgentClientFactory = async () => {
+      factoryCalls++;
+      throw new Error("close must not build an agent client");
+    };
+
+    const code = await run(["close", "task-9", "--base-url", BASE_URL], { fetchImpl, agentClientFactory, stdout: io.stdout, stderr: io.stderr });
+
+    expect(code).toBe(0);
+    expect(io.out[0]).toContain("state: completed");
+    expect(calls).toEqual([`${BASE_URL}/tasks/task-9/close`]);
+    expect(factoryCalls).toBe(0);
+  });
+
+  it("an unknown task id exits 2 with one clean line", async () => {
+    const io = collector();
+    const { fetchImpl } = fakeFetch({
+      "/tasks/ghost-task/close": () => jsonResponse({ error: "TASK_NOT_FOUND", taskId: "ghost-task" }, 404),
+    });
+
+    const code = await run(["close", "ghost-task", "--base-url", BASE_URL], { fetchImpl, stdout: io.stdout, stderr: io.stderr });
+
+    expect(code).toBe(2);
+    expect(io.err).toHaveLength(1);
+    expect(io.err[0]).toMatch(/unknown task ghost-task/);
+  });
+
+  it("a task that is still working surfaces the gateway's TASK_NOT_TERMINAL error", async () => {
+    const io = collector();
+    const { fetchImpl } = fakeFetch({
+      "/tasks/task-9/close": () =>
+        jsonResponse({ error: { code: "TASK_NOT_TERMINAL", message: "task task-9 is working; cancel it first" } }, 500),
+    });
+
+    const code = await run(["close", "task-9", "--base-url", BASE_URL], { fetchImpl, stdout: io.stdout, stderr: io.stderr });
+
+    expect(code).toBe(2);
+    expect(io.err[0]).toBe("TASK_NOT_TERMINAL: task task-9 is working; cancel it first");
+  });
+});
+
+describe("run: delegate forwards the caller's own pane/tab/workspace as transport headers", () => {
+  it("forwards HERDR_PANE_ID/HERDR_TAB_ID/HERDR_WORKSPACE_ID as serviceParameters, not message metadata", async () => {
+    const io = collector();
+    let capturedOptions: { serviceParameters?: Record<string, string> } | undefined;
+    const client: AgentClient = {
+      sendMessage: async (_params, options) => {
+        capturedOptions = options;
+        return baseTask();
+      },
+      sendMessageStream: async function* () {},
+      getTask: async () => baseTask(),
+      cancelTask: async () => baseTask(),
+    };
+
+    const code = await run(["delegate", "codex", "do", "it", "--base-url", BASE_URL], {
+      env: { HERDR_PANE_ID: "pane-a", HERDR_TAB_ID: "tab-a", HERDR_WORKSPACE_ID: "ws-a" },
+      agentClientFactory: async () => client,
+      stdout: io.stdout,
+      stderr: io.stderr,
+    });
+
+    expect(code).toBe(0);
+    expect(capturedOptions?.serviceParameters).toEqual({
+      "x-herdr-caller-pane-id": "pane-a",
+      "x-herdr-caller-tab-id": "tab-a",
+      "x-herdr-caller-workspace-id": "ws-a",
+    });
+  });
+
+  it("omits serviceParameters entirely when the CLI's own env carries no caller-pane context", async () => {
+    const io = collector();
+    let capturedOptions: { serviceParameters?: Record<string, string> } | undefined;
+    const client: AgentClient = {
+      sendMessage: async (_params, options) => {
+        capturedOptions = options;
+        return baseTask();
+      },
+      sendMessageStream: async function* () {},
+      getTask: async () => baseTask(),
+      cancelTask: async () => baseTask(),
+    };
+
+    await run(["delegate", "codex", "do", "it", "--base-url", BASE_URL], {
+      env: {},
+      agentClientFactory: async () => client,
+      stdout: io.stdout,
+      stderr: io.stderr,
+    });
+
+    expect(capturedOptions?.serviceParameters).toBeUndefined();
+  });
+});

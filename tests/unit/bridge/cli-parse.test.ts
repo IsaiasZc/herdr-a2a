@@ -99,6 +99,11 @@ describe("parseArgs", () => {
     expect(result).toEqual({ ok: true, command: { verb: "cancel", taskId: "task-7", json: true } });
   });
 
+  it("parses close", () => {
+    const result = parseArgs(["close", "task-7", "--json"]);
+    expect(result).toEqual({ ok: true, command: { verb: "close", taskId: "task-7", json: true } });
+  });
+
   it("rejects an unknown verb with the help text on stderr", () => {
     const result = parseArgs(["frobnicate"]);
     expect(result.ok).toBe(false);

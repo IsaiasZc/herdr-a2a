@@ -1,6 +1,6 @@
 ---
 name: herdr-a2a
-description: Use this skill to delegate a coding task to another agent running under Herdr (for example codex or claude) when you don't have native A2A support. Covers discovering available agents, delegating a task, answering a follow-up question, and checking or canceling a task.
+description: Use this skill to delegate a coding task to another agent running under Herdr (for example codex or claude) when you don't have native A2A support. Covers discovering available agents, delegating a task, answering a follow-up question, checking, canceling, or closing a task.
 ---
 
 # herdr-a2a
@@ -48,6 +48,16 @@ for a follow-up.
 ## Cancel a task
 
     herdr-a2a cancel <task-id>
+
+## Close a task's worker
+
+    herdr-a2a close <task-id>
+
+Shuts down the terminal process behind a finished task. Agents stay
+running after they finish (so you can inspect them or hand them another
+task) — call `close` explicitly once you're really done with one. Only
+works on a task that isn't still running; `cancel` it first if it's
+`working`.
 
 ## Notes
 

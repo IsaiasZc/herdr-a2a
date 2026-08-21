@@ -258,6 +258,17 @@ export interface DelegateRequest {
   /** A2A contextId, so a continuation lands on the same worker. */
   contextId?: string;
 
+  /**
+   * The requesting orchestrator's own pane/tab/workspace, threaded in from
+   * transport-level caller-context headers (never agent-authored metadata —
+   * see `src/a2a/caller-context.ts`). Takes precedence over `callerContext()`
+   * so concurrent orchestrators in different tabs each land in their own tab
+   * rather than wherever Herdr's session-wide focus happens to be.
+   */
+  callerPaneId?: string;
+  callerTabId?: string;
+  callerWorkspaceId?: string;
+
   metadata?: Record<string, unknown>;
 }
 

@@ -4,7 +4,7 @@ import type { Server } from "node:http";
 import { DefaultRequestHandler } from "@a2a-js/sdk/server";
 import { UserBuilder, jsonRpcHandler, restHandler } from "@a2a-js/sdk/server/express";
 
-import { DelegationFailure, toDelegationError } from "../core/errors.js";
+import { DelegationFailure, ERROR_CODES, toDelegationError } from "../core/errors.js";
 import type { AgentDescriptor } from "../core/model.js";
 import type { AgentCatalog, AppConfig, DelegationService, Logger, TaskStore } from "../core/ports.js";
 import type { DelegatedTaskService } from "../core/task-service.js";
@@ -144,6 +144,39 @@ export class A2AGateway {
           });
         })
         .catch((err: unknown) => this.sendError(res, err));
+    });
+
+    /**
+     * Tears down the pane/process behind a finished task, on demand. Distinct
+     * from A2A `cancelTask` (an in-flight interrupt): `close` acts on a task
+     * that already reached a terminal state and has no A2A-native meaning, so
+     * it lives here as a gateway-local route rather than in the per-agent
+     * executor, exactly like `GET /tasks/:id` above.
+     */
+    app.post("/tasks/:id/close", (req, res) => {
+      const id = req.params["id"];
+      if (!id) {
+        res.status(404).json({ error: "TASK_NOT_FOUND" });
+        return;
+      }
+      void this.opts.delegation
+        .close(id)
+        .then((task) => {
+          res.json({
+            agent: task.target.name,
+            url: `${this.baseUrl}${agentEndpointPath(task.target.name)}`,
+            task: toA2aTask(task),
+          });
+        })
+        .catch((err: unknown) => {
+          // Mirror GET /tasks/:id's 404 so the CLI's TaskNotFoundError path
+          // (keyed on HTTP status, not the error body) works identically here.
+          if (err instanceof DelegationFailure && err.code === ERROR_CODES.TASK_NOT_FOUND) {
+            res.status(404).json({ error: err.toJSON(), taskId: id });
+            return;
+          }
+          this.sendError(res, err);
+        });
     });
 
     app.get("/.well-known/agent-card.json", (_req, res) => {

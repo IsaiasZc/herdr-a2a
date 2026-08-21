@@ -25,6 +25,9 @@ const SUBSCRIPTIONS: Subscription[] = [
   { type: "pane.exited" },
   { type: "pane.moved" },
   { type: "tab.closed" },
+  { type: "workspace.focused" },
+  { type: "tab.focused" },
+  { type: "pane.focused" },
 ];
 
 export interface SessionCacheOptions {
@@ -55,6 +58,10 @@ export class HerdrSessionCache implements SessionCache {
   private snap: SessionSnapshot | undefined;
   private readonly agentsByPane = new Map<string, AgentInfo>();
   private readonly panesById = new Map<string, PaneInfo>();
+
+  private focusedWorkspaceId: string | undefined;
+  private focusedTabId: string | undefined;
+  private focusedPaneId: string | undefined;
 
   private subscription: HerdrSubscription | undefined;
   private readonly resyncHandlers = new Set<() => void>();
@@ -118,6 +125,9 @@ export class HerdrSessionCache implements SessionCache {
     for (const agent of snapshot.agents) {
       this.agentsByPane.set(agent.pane_id, agent);
     }
+    this.focusedWorkspaceId = snapshot.focused_workspace_id;
+    this.focusedTabId = snapshot.focused_tab_id;
+    this.focusedPaneId = snapshot.focused_pane_id;
   }
 
   /** Called by the socket client when the connection drops. */
@@ -182,6 +192,29 @@ export class HerdrSessionCache implements SessionCache {
           this.agentsByPane.delete(paneId);
           this.seeded.delete(paneId);
         }
+        return;
+      }
+      // Flat payloads (spec: `{ type: "workspace_focused", workspace_id }`,
+      // `{ type: "tab_focused", tab_id, workspace_id }`,
+      // `{ type: "pane_focused", pane_id, workspace_id }`) — not nested under
+      // a `pane`/`tab` object like `pane.updated`/`tab.closed` are.
+      case "workspace.focused": {
+        const workspaceId = data["workspace_id"] as string | undefined;
+        if (workspaceId) this.focusedWorkspaceId = workspaceId;
+        return;
+      }
+      case "tab.focused": {
+        const tabId = data["tab_id"] as string | undefined;
+        const workspaceId = data["workspace_id"] as string | undefined;
+        if (tabId) this.focusedTabId = tabId;
+        if (workspaceId) this.focusedWorkspaceId = workspaceId;
+        return;
+      }
+      case "pane.focused": {
+        const paneId = data["pane_id"] as string | undefined;
+        const workspaceId = data["workspace_id"] as string | undefined;
+        if (paneId) this.focusedPaneId = paneId;
+        if (workspaceId) this.focusedWorkspaceId = workspaceId;
         return;
       }
       default:
@@ -270,6 +303,11 @@ export class HerdrSessionCache implements SessionCache {
 
   snapshot(): SessionSnapshot | undefined {
     return this.snap;
+  }
+
+  focusedContext(): { workspaceId: string; tabId: string; paneId: string } | undefined {
+    if (!this.focusedWorkspaceId || !this.focusedTabId || !this.focusedPaneId) return undefined;
+    return { workspaceId: this.focusedWorkspaceId, tabId: this.focusedTabId, paneId: this.focusedPaneId };
   }
 
   agents(): AgentInfo[] {

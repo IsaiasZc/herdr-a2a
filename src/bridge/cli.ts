@@ -37,6 +37,7 @@ Usage:
   herdr-a2a get <task-id> [--json]
   herdr-a2a continue <task-id> <message> [--wait] [--json]
   herdr-a2a cancel <task-id> [--json]
+  herdr-a2a close <task-id> [--json]
   herdr-a2a doctor [--json]   (operator diagnostic — not part of the delegation surface)
 
 Flags:
@@ -51,7 +52,7 @@ Use "--" to pass a message that starts with a dash:
 
 Exit codes: 0 success, 1 the task/operation reported a failure, 2 usage or connectivity error.`;
 
-const VERBS = new Set(["discover", "delegate", "get", "continue", "cancel", "doctor"]);
+const VERBS = new Set(["discover", "delegate", "get", "continue", "cancel", "close", "doctor"]);
 const BASE_URL_FLAG = new Set(["base-url"]);
 
 interface CommandBase {
@@ -87,8 +88,19 @@ export interface CancelCommand extends CommandBase {
   verb: "cancel";
   taskId: string;
 }
+export interface CloseCommand extends CommandBase {
+  verb: "close";
+  taskId: string;
+}
 
-export type Command = DiscoverCommand | DoctorCommand | DelegateCommand | GetCommand | ContinueCommand | CancelCommand;
+export type Command =
+  | DiscoverCommand
+  | DoctorCommand
+  | DelegateCommand
+  | GetCommand
+  | ContinueCommand
+  | CancelCommand
+  | CloseCommand;
 
 export type ParseResult = { ok: true; command: Command } | { ok: false; message: string };
 
@@ -182,7 +194,7 @@ export function parseArgs(argv: string[]): ParseResult {
     };
   }
 
-  if (verb === "get" || verb === "cancel") {
+  if (verb === "get" || verb === "cancel" || verb === "close") {
     const t = tokenize(rest, BASE_URL_FLAG, new Set(["json"]));
     if (t.error !== undefined) return usageError(t.error);
     const taskId = t.positionals[0];
@@ -290,7 +302,12 @@ export async function run(argv: string[], depsInput: Partial<RunDeps> = {}): Pro
     baseUrl === DEFAULT_GATEWAY_URL &&
     command.baseUrl === undefined &&
     !(deps.env["HERDR_A2A_URL"] && deps.env["HERDR_A2A_URL"].length > 0);
-  const client = new BridgeClient({ baseUrl, fetchImpl: deps.fetchImpl, agentClientFactory: deps.agentClientFactory });
+  const client = new BridgeClient({
+    baseUrl,
+    fetchImpl: deps.fetchImpl,
+    agentClientFactory: deps.agentClientFactory,
+    env: deps.env,
+  });
 
   // No separate reachability preflight: `get` now needs only one network
   // call (`GET /tasks/:id`), and every call path below already turns a
@@ -327,6 +344,10 @@ export async function run(argv: string[], depsInput: Partial<RunDeps> = {}): Pro
       }
       case "cancel": {
         const task = await client.cancelTask(command.taskId);
+        return printResult(deps, command.json, task);
+      }
+      case "close": {
+        const task = await client.closeTask(command.taskId);
         return printResult(deps, command.json, task);
       }
     }

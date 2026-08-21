@@ -1,7 +1,8 @@
-import { AgentEvent } from "@a2a-js/sdk/server";
+import { AgentEvent, STATE_HEADERS_KEY, type RequestHeaders } from "@a2a-js/sdk/server";
 import type { AgentExecutor, ExecutionEventBus, RequestContext } from "@a2a-js/sdk/server";
 import { TaskState, type Message } from "@a2a-js/sdk";
 
+import { readCallerContextHeaders } from "./caller-context.js";
 import { DelegationFailure, ERROR_CODES, toDelegationError } from "../core/errors.js";
 import { TERMINAL_TASK_STATES, type DelegatedTask } from "../core/model.js";
 import type { AppConfig, DelegationService, Logger } from "../core/ports.js";
@@ -41,6 +42,8 @@ export class DelegatingExecutor implements AgentExecutor {
     let task: DelegatedTask;
     try {
       const options = parseExecutionOptions(ctx.userMessage.metadata ?? undefined);
+      const headers = ctx.context.state?.get(STATE_HEADERS_KEY) as RequestHeaders | undefined;
+      const callerContext = readCallerContextHeaders(headers);
 
       task = ctx.task
         ? // A continuation: same task, same worker, same context (spec §32).
@@ -52,6 +55,7 @@ export class DelegatingExecutor implements AgentExecutor {
             contextId: ctx.contextId,
             ...(options.model ? { model: options.model } : {}),
             ...(options.visibility ? { visibility: options.visibility } : {}),
+            ...callerContext,
           });
     } catch (err) {
       const failure = toDelegationError(err, ERROR_CODES.TASK_FAILED);

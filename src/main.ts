@@ -282,13 +282,25 @@ async function wire(deps: {
     events,
     logger: logger.child({ component: "delegation" }),
     resolveCaller: () => callerFromEnv(process.env, (paneId) => sessionCache.agentByPane(paneId)),
+    // Fallback only (spec: multi-orchestrator tab targeting). The primary
+    // mechanism is the per-request caller-pane headers threaded through
+    // src/a2a/caller-context.ts, resolved with precedence in
+    // HerdrDelegationService.delegate(). This closure only fires when a
+    // request carries no such headers (e.g. a direct A2A client bypassing
+    // the herdr-a2a CLI): it prefers Herdr's live session-wide focus over the
+    // gateway process's own env, which is frozen at startup and reflects
+    // wherever Herdr happened to launch the gateway, not "now".
     callerContext: () => {
-      const paneId = process.env["HERDR_PANE_ID"];
+      const focused = sessionCache.focusedContext();
+      const focusedPaneAlive = focused !== undefined && sessionCache.pane(focused.paneId) !== undefined;
+      const paneId = (focusedPaneAlive ? focused.paneId : undefined) ?? process.env["HERDR_PANE_ID"];
+      const tabId = (focusedPaneAlive ? focused.tabId : undefined) ?? process.env["HERDR_TAB_ID"];
+      const workspaceId = (focusedPaneAlive ? focused.workspaceId : undefined) ?? process.env["HERDR_WORKSPACE_ID"];
       const pane = paneId ? sessionCache.pane(paneId) : undefined;
       return {
         ...(paneId ? { paneId } : {}),
-        ...(process.env["HERDR_TAB_ID"] ? { tabId: process.env["HERDR_TAB_ID"] } : {}),
-        ...(process.env["HERDR_WORKSPACE_ID"] ? { workspaceId: process.env["HERDR_WORKSPACE_ID"] } : {}),
+        ...(tabId ? { tabId } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
         ...(pane?.cwd ? { cwd: pane.cwd } : {}),
       };
     },

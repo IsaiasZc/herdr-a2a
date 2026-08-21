@@ -12,6 +12,7 @@ import {
 import { ClientFactory, DefaultAgentCardResolver, JsonRpcTransportFactory, type RequestOptions } from "@a2a-js/sdk/client";
 
 import { agentEndpointPath } from "../a2a/cards.js";
+import { callerContextServiceParameters } from "../a2a/caller-context.js";
 import { EXECUTION_OPTIONS_URI, type ExecutionOptions } from "../a2a/execution-options.js";
 import { textPart } from "../a2a/task-mapper.js";
 import { DEFAULT_GATEWAY_URL } from "../gateway-discovery.js";
@@ -121,6 +122,10 @@ export interface BridgeClientOptions {
   baseUrl: string;
   fetchImpl?: typeof fetch;
   agentClientFactory?: AgentClientFactory;
+  /** The CLI process's own env, so `delegate`/`continue` can forward the
+   * caller's own placement context as transport-level headers (see
+   * src/a2a/caller-context.ts). */
+  env?: NodeJS.ProcessEnv;
 }
 
 /** `GET /tasks/:id` response shape (src/a2a/server.ts). */
@@ -134,11 +139,13 @@ export class BridgeClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly agentClientFactory: AgentClientFactory;
+  private readonly env: NodeJS.ProcessEnv;
 
   constructor(opts: BridgeClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.agentClientFactory = opts.agentClientFactory ?? defaultAgentClientFactory;
+    this.env = opts.env ?? process.env;
   }
 
   /** `GET {baseUrl}/agents` — the local catalog helper (spec §7). */
@@ -166,6 +173,20 @@ export class BridgeClient {
     const { status, body } = await this.fetchJson(path);
     if (status < 200 || status >= 300) throw new GatewayHttpError(status, body);
     return body;
+  }
+
+  private async postJson(path: string): Promise<{ status: number; body: unknown }> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        method: "POST",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      throw new GatewayUnreachableError(this.baseUrl, err);
+    }
+    const body: unknown = await res.json().catch(() => undefined);
+    return { status: res.status, body };
   }
 
   /**
@@ -199,7 +220,7 @@ export class BridgeClient {
   /** `delegate` → `sendMessage`, or `sendMessageStream` when `wait` is true. */
   async delegate(agentName: string, text: string, options: ExecutionOptions, wait: boolean): Promise<SendMessageResult> {
     const client = await this.clientForUrl(`${this.baseUrl}${agentEndpointPath(agentName)}`);
-    return send(client, buildMessage(text, options, ""), wait);
+    return send(client, buildMessage(text, options, ""), wait, callerContextServiceParameters(this.env));
   }
 
   /** `get` → one direct lookup; no A2A round trip needed for a read. */
@@ -220,11 +241,29 @@ export class BridgeClient {
   async continueTask(taskId: string, text: string, options: ExecutionOptions, wait: boolean): Promise<SendMessageResult> {
     const { url } = await this.lookupTask(taskId);
     const client = await this.clientForUrl(url);
-    return send(client, buildMessage(text, options, taskId), wait);
+    return send(client, buildMessage(text, options, taskId), wait, callerContextServiceParameters(this.env));
+  }
+
+  /** `close` → `POST {baseUrl}/tasks/:id/close`, a gateway-local route (not
+   * an A2A method): tearing down a finished task's worker has no A2A-native
+   * meaning, mirroring how `GET /tasks/:id` already bypasses the per-agent
+   * router (src/a2a/server.ts). */
+  async closeTask(taskId: string): Promise<Task> {
+    const { status, body } = await this.postJson(`/tasks/${encodeURIComponent(taskId)}/close`);
+    if (status === 404) throw new TaskNotFoundError(taskId, body);
+    if (status < 200 || status >= 300) throw new GatewayHttpError(status, body);
+    const parsed = body as { task?: unknown };
+    if (parsed.task === undefined) throw new GatewayHttpError(status, body);
+    return parsed.task as Task;
   }
 }
 
-async function send(client: AgentClient, message: Message, wait: boolean): Promise<SendMessageResult> {
+async function send(
+  client: AgentClient,
+  message: Message,
+  wait: boolean,
+  serviceParameters?: Record<string, string>,
+): Promise<SendMessageResult> {
   const request: SendMessageRequest = {
     tenant: "",
     message,
@@ -236,9 +275,17 @@ async function send(client: AgentClient, message: Message, wait: boolean): Promi
     metadata: undefined,
   };
   if (wait) {
-    return consumeStream(client.sendMessageStream(request, { signal: AbortSignal.timeout(WAIT_TIMEOUT_MS) }));
+    return consumeStream(
+      client.sendMessageStream(request, {
+        ...(serviceParameters ? { serviceParameters } : {}),
+        signal: AbortSignal.timeout(WAIT_TIMEOUT_MS),
+      }),
+    );
   }
-  return client.sendMessage(request, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  return client.sendMessage(request, {
+    ...(serviceParameters ? { serviceParameters } : {}),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
 }
 
 function immediateConfig(): SendMessageConfiguration {

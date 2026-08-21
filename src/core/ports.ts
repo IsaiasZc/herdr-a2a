@@ -135,6 +135,12 @@ export interface SessionCache {
   agentByPane(paneId: string): AgentInfo | undefined;
   agentBySessionRef(sessionRef: string): AgentInfo | undefined;
   pane(paneId: string): PaneInfo | undefined;
+  /**
+   * Live-updated session-wide human focus (fallback only — see
+   * `src/a2a/caller-context.ts` for the primary per-caller mechanism).
+   * `undefined` until the first snapshot lands.
+   */
+  focusedContext(): { workspaceId: string; tabId: string; paneId: string } | undefined;
   /** Fires after a reconnect + resnapshot, so queues can be re-verified. */
   onResync(handler: () => void): () => void;
   onAgentStatus(handler: (agent: AgentInfo) => void): () => void;
@@ -332,6 +338,14 @@ export interface DelegationService {
   continueTask(taskId: string, message: string, caller?: AgentIdentity): Promise<DelegatedTask>;
   get(taskId: string): Promise<DelegatedTask>;
   cancel(taskId: string): Promise<DelegatedTask>;
+  /**
+   * Tears down the worker behind a terminal task, on demand — never
+   * automatic. Distinct from `cancel` (an in-flight interrupt): `close`
+   * requires the task to already be terminal, throwing `TASK_NOT_TERMINAL`
+   * otherwise, and `INSTANCE_STILL_ACTIVE` if another non-terminal task
+   * shares the same worker.
+   */
+  close(taskId: string): Promise<DelegatedTask>;
 }
 
 export interface Reconciler {

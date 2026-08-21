@@ -30,6 +30,7 @@ export const EVENTS = {
   spawnRuntimeStarting: "spawn.runtime_starting",
   spawnRuntimeReady: "spawn.runtime_ready",
   spawnFailed: "spawn.failed",
+  spawnReleased: "spawn.released",
 
   layoutOverflowTab: "layout.overflow_tab",
 
