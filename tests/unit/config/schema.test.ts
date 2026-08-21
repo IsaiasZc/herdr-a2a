@@ -14,8 +14,8 @@ describe("buildDefaultConfig", () => {
   it("matches the spec defaults", () => {
     const config = buildDefaultConfig(EMPTY_ENV);
     expect(config.gateway.host).toBe("127.0.0.1");
-    expect(config.gateway.port).toBe(4319);
-    expect(config.gateway.baseUrl).toBe("http://127.0.0.1:4319");
+    expect(config.gateway.port).toBe(0);
+    expect(config.gateway.baseUrl).toBeUndefined();
     expect(config.layout).toEqual({ minColumns: 50, minRows: 12, overflow: "new_tab" });
     expect(config.relay).toEqual({
       stableWindowMs: 350,
@@ -57,7 +57,7 @@ describe("AppConfigSchema", () => {
   it("produces output structurally assignable to AppConfig", () => {
     const parsed: AppConfig = AppConfigSchema.parse(buildDefaultConfig(EMPTY_ENV));
     // If this compiles and runs, the schema's output type satisfies AppConfig.
-    expect(parsed.gateway.port).toBe(4319);
+    expect(parsed.gateway.port).toBe(0);
   });
 
   it("accepts a custom profile whose runtime is a plain, unvalidated string", () => {

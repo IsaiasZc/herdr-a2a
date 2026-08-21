@@ -81,8 +81,8 @@ const agentsSchema = z
 const gatewaySchema = z
   .object({
     host: z.string().min(1),
-    port: z.number().int().min(1).max(65535),
-    baseUrl: z.string().min(1),
+    port: z.number().int().min(0).max(65535),
+    baseUrl: z.string().min(1).optional(),
   })
   .strict();
 
@@ -163,7 +163,7 @@ export const AppConfigSchema = rawAppConfigSchema.transform((config) => config a
 // ---------------------------------------------------------------------------
 
 const DEFAULT_GATEWAY_HOST = "127.0.0.1";
-const DEFAULT_GATEWAY_PORT = 4319;
+const DEFAULT_GATEWAY_PORT = 0;
 
 /**
  * Every default in one place, computed against a caller-supplied `env` so
@@ -190,7 +190,6 @@ export function buildDefaultConfig(env: NodeJS.ProcessEnv): AppConfig {
     gateway: {
       host,
       port,
-      baseUrl: `http://${host}:${port}`,
     },
     layout: {
       minColumns: 50,

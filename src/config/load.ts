@@ -67,27 +67,6 @@ function readConfigFile(path: string): unknown {
 }
 
 /**
- * `gateway.baseUrl` is derived from `host`+`port` unless a layer explicitly
- * sets `baseUrl` itself. Detect that from the raw (pre-validation) layers
- * rather than the merged result, since the merged result always has *some*
- * baseUrl (the default) and can't tell us whether it was explicit.
- */
-function applyBaseUrlDerivation(merged: Record<string, unknown>, layers: unknown[]): void {
-  const gateway = isPlainObject(merged.gateway) ? merged.gateway : undefined;
-  if (!gateway) return;
-  const explicitBaseUrl = layers.some((layer) => {
-    if (!isPlainObject(layer)) return false;
-    const gw = layer.gateway;
-    return isPlainObject(gw) && typeof gw.baseUrl === "string";
-  });
-  if (explicitBaseUrl) return;
-  const host = typeof gateway.host === "string" ? gateway.host : undefined;
-  const port = typeof gateway.port === "number" ? gateway.port : undefined;
-  if (host === undefined || port === undefined) return;
-  gateway.baseUrl = `http://${host}:${port}`;
-}
-
-/**
  * Validates an already-merged raw config object (defaults + overlays) and
  * reports failures through the shared error taxonomy rather than a bare zod
  * error, so callers (gateway startup, `doctor`) get a structured
@@ -120,7 +99,6 @@ export function loadConfig(opts: LoadConfigOptions = {}): AppConfig {
   const overridesRaw = opts.overrides;
 
   const merged = deepMerge(deepMerge(defaults as unknown as Record<string, unknown>, fileRaw), overridesRaw);
-  applyBaseUrlDerivation(merged as Record<string, unknown>, [fileRaw, overridesRaw]);
 
   return parseOrFail(merged);
 }
@@ -134,6 +112,5 @@ export function loadConfig(opts: LoadConfigOptions = {}): AppConfig {
 export function validateConfig(raw: unknown): AppConfig {
   const defaults = buildDefaultConfig(process.env);
   const merged = deepMerge(defaults as unknown as Record<string, unknown>, raw);
-  applyBaseUrlDerivation(merged as Record<string, unknown>, [raw]);
   return parseOrFail(merged);
 }

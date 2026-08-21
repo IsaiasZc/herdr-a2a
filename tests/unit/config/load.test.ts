@@ -25,7 +25,7 @@ describe("loadConfig", () => {
   it("returns defaults when no config file is present (missing file is not an error)", () => {
     const config = loadConfig({ path: join(dir, "does-not-exist.yaml"), env: baseEnv() });
     expect(config.agents).toEqual({});
-    expect(config.gateway.port).toBe(4319);
+    expect(config.gateway.port).toBe(0);
     expect(config.defaults.visibility).toBe("visible");
   });
 
@@ -46,8 +46,8 @@ describe("loadConfig", () => {
     );
     const config = loadConfig({ path: file, env: baseEnv() });
     expect(config.gateway.port).toBe(5000);
-    // baseUrl was not set explicitly in the file, so it is re-derived from host+port.
-    expect(config.gateway.baseUrl).toBe("http://127.0.0.1:5000");
+    // Without an explicit reverse-proxy URL, the gateway derives its URL after binding.
+    expect(config.gateway.baseUrl).toBeUndefined();
     expect(config.relay.stableWindowMs).toBe(500);
     // Untouched fields keep their defaults.
     expect(config.relay.turnStartTimeoutMs).toBe(8000);
@@ -59,7 +59,7 @@ describe("loadConfig", () => {
     writeFileSync(file, ["gateway:", "  port: 5000"].join("\n"));
     const config = loadConfig({ path: file, env: baseEnv(), overrides: { gateway: { port: 6000 } } });
     expect(config.gateway.port).toBe(6000);
-    expect(config.gateway.baseUrl).toBe("http://127.0.0.1:6000");
+    expect(config.gateway.baseUrl).toBeUndefined();
   });
 
   it("respects an explicit baseUrl instead of re-deriving it", () => {

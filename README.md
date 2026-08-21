@@ -82,17 +82,53 @@ See [`docs/herdr-contract.md`](docs/herdr-contract.md) for everything that was
 verified against the installed Herdr, including the corrections to assumptions
 the design started with.
 
-## Usage
+## Install
 
-Start the gateway inside a Herdr-managed pane:
+One command, from inside a Herdr pane. It is idempotent — re-run it after
+pulling changes.
 
 ```bash
-npm install
-npm run build
-node dist/main.js serve          # or: node dist/main.js doctor
+node scripts/install.mjs
 ```
 
-Then, from any caller:
+That wires four things, all as links rather than copies, so editing this repo
+updates the installation in place:
+
+| | |
+| --- | --- |
+| **Herdr plugin** | `herdr plugin link` this directory. Herdr then starts the gateway whenever Herdr starts — it owns the process, exactly as it owns a worker's (spec §23) |
+| **CLI** | `herdr-a2a` symlinked into `~/.local/bin` |
+| **Skill** | symlinked into every agent skills directory found — `~/.claude/skills/`, `~/.codex/skills/`, `~/.config/opencode/skills/` — using each agent's own `<dir>/<name>/SKILL.md` convention |
+| **Gateway** | started for the session you are in right now, because Herdr's startup hook only fires at server boot |
+
+```bash
+node scripts/install.mjs status      # what is wired, what is not
+node scripts/install.mjs uninstall   # remove every link; the repo is untouched
+```
+
+### One gateway per Herdr session
+
+The plugin is installed once and every Herdr session starts its own gateway,
+each bound to that session's socket on its own ephemeral port. Sessions must not
+share one: a gateway talks to exactly one Herdr socket, so a shared gateway
+would create panes in the wrong session.
+
+A fixed port would not work either. On this platform a second bind to an
+already-held port does **not** fail — Node reports success while every request
+goes to the first listener, so the second gateway silently serves nothing. So
+the port is ephemeral, and each gateway publishes where it landed:
+
+```
+$XDG_RUNTIME_DIR/herdr-a2a/<hash of the Herdr socket path>.json
+```
+
+Any agent in the session computes that path from its own `HERDR_SOCKET_PATH` and
+finds its gateway. `serve` is idempotent: if a healthy gateway already serves the
+session it exits instead of binding a second time.
+
+## Usage
+
+From any caller, in any Herdr pane:
 
 ```bash
 herdr-a2a discover
@@ -101,6 +137,11 @@ herdr-a2a get task_1a2b3c
 herdr-a2a continue task_1a2b3c "Yes, update the tests too"
 herdr-a2a cancel task_1a2b3c
 ```
+
+Agents that can't be taught a CLI get the skill instead — it teaches exactly
+four things (discover, delegate, continue, inspect/cancel) and fits on one
+screen. If a skill ever needs to explain pane topology or runtime flags, the
+abstraction has failed (spec §54).
 
 Agents with native A2A support skip the CLI entirely: each discovered agent has
 its own Agent Card and endpoint at `/a2a/agents/<name>`, so a caller selects a

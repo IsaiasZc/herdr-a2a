@@ -14,6 +14,8 @@ import { ClientFactory, DefaultAgentCardResolver, JsonRpcTransportFactory, type 
 import { agentEndpointPath } from "../a2a/cards.js";
 import { EXECUTION_OPTIONS_URI, type ExecutionOptions } from "../a2a/execution-options.js";
 import { textPart } from "../a2a/task-mapper.js";
+import { DEFAULT_GATEWAY_URL } from "../gateway-discovery.js";
+export { resolveGatewayUrl } from "../gateway-discovery.js";
 
 /**
  * Thin facade over the gateway's HTTP surface (spec §8.1). Every method here
@@ -104,9 +106,10 @@ export const defaultAgentClientFactory: AgentClientFactory = async (agentUrl, fe
   return factory.createFromUrl(agentUrl, "");
 };
 
-export const DEFAULT_BASE_URL = "http://127.0.0.1:4319";
+/** @deprecated Use session-aware `resolveGatewayUrl` from gateway-discovery instead. */
+export const DEFAULT_BASE_URL = DEFAULT_GATEWAY_URL;
 
-/** `--base-url` flag > `HERDR_A2A_URL` env > the built-in default. */
+/** @deprecated Kept for source compatibility; the CLI uses `resolveGatewayUrl`. */
 export function resolveBaseUrl(flagValue: string | undefined, env: NodeJS.ProcessEnv): string {
   if (flagValue !== undefined && flagValue.length > 0) return flagValue;
   const fromEnv = env["HERDR_A2A_URL"];

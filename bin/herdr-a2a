@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+# Thin launcher for the herdr-a2a CLI.
+#
+# The compiled entry point is plain `tsc` output, and `tsc` rewrites it on every
+# build without an executable bit — so symlinking straight at dist/ gives a
+# "Permission denied" that reappears after each rebuild. This wrapper is
+# committed with its mode intact and locates the build output relative to
+# itself, so it keeps working wherever the repo lives.
+#
+# It resolves its own symlinks by hand rather than using `readlink -f`, which
+# older macOS does not support. That matters because the normal installation IS
+# a symlink from a bin directory on PATH.
+set -e
+
+self=$0
+while [ -L "$self" ]; do
+  target=$(readlink "$self")
+  case $target in
+    /*) self=$target ;;
+    *)  self=$(dirname -- "$self")/$target ;;
+  esac
+done
+
+here=$(CDPATH= cd -- "$(dirname -- "$self")" && pwd -P)
+exec node "$here/../dist/bridge/cli.js" "$@"

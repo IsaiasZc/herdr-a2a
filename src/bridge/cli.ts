@@ -9,9 +9,9 @@ import {
   GatewayUnreachableError,
   TaskNotFoundError,
   defaultAgentClientFactory,
-  resolveBaseUrl,
   type AgentClientFactory,
 } from "./client.js";
+import { DEFAULT_GATEWAY_URL, resolveGatewayUrl } from "../gateway-discovery.js";
 import {
   exitCodeForTask,
   isDoctorOk,
@@ -40,7 +40,7 @@ Usage:
   herdr-a2a doctor [--json]   (operator diagnostic — not part of the delegation surface)
 
 Flags:
-  --base-url <url>   gateway base URL (default: $HERDR_A2A_URL, else http://127.0.0.1:4319)
+  --base-url <url>   gateway base URL (default: $HERDR_A2A_URL, then this session's discovery file, else http://127.0.0.1:4319)
   --model <name>     request a specific model for a new delegation
   --headless         run the delegated task without a visible terminal
   --wait             block until the task settles or needs input, streaming updates
@@ -239,6 +239,10 @@ function unreachableMessage(baseUrl: string): string {
   );
 }
 
+function noGatewayForSessionMessage(): string {
+  return "no gateway found for this Herdr session; check `herdr plugin list` and install it with `herdr plugin link <path-to-herdr-a2a>`";
+}
+
 function agentUnreachableMessage(err: AgentUnreachableError): string {
   return (
     `Cannot reach agent endpoint ${err.agentUrl}. ` +
@@ -281,7 +285,11 @@ export async function run(argv: string[], depsInput: Partial<RunDeps> = {}): Pro
     return 2;
   }
   const command = parsed.command;
-  const baseUrl = resolveBaseUrl(command.baseUrl, deps.env);
+  const baseUrl = await resolveGatewayUrl({ flag: command.baseUrl, env: deps.env, fetchImpl: deps.fetchImpl });
+  const usedLegacyFallback =
+    baseUrl === DEFAULT_GATEWAY_URL &&
+    command.baseUrl === undefined &&
+    !(deps.env["HERDR_A2A_URL"] && deps.env["HERDR_A2A_URL"].length > 0);
   const client = new BridgeClient({ baseUrl, fetchImpl: deps.fetchImpl, agentClientFactory: deps.agentClientFactory });
 
   // No separate reachability preflight: `get` now needs only one network
@@ -328,7 +336,7 @@ export async function run(argv: string[], depsInput: Partial<RunDeps> = {}): Pro
       return 2;
     }
     if (err instanceof GatewayUnreachableError) {
-      deps.stderr(unreachableMessage(baseUrl));
+      deps.stderr(usedLegacyFallback ? noGatewayForSessionMessage() : unreachableMessage(baseUrl));
       return 2;
     }
     if (err instanceof AgentUnreachableError) {

@@ -366,8 +366,10 @@ export interface RecoveryConfig {
 
 export interface GatewayConfig {
   host: string;
+  /** `0` asks the operating system for a session-private ephemeral port. */
   port: number;
-  baseUrl: string;
+  /** Explicit external/reverse-proxy URL; otherwise it is derived after bind. */
+  baseUrl?: string;
 }
 
 export interface AppConfig {

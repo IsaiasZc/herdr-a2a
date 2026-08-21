@@ -62,6 +62,20 @@ function collector() {
 }
 
 describe("run: connectivity", () => {
+  it("names missing session discovery and the plugin install check in one actionable line", async () => {
+    const io = collector();
+    const brokenFetch: typeof fetch = (async () => {
+      throw new Error("connect ECONNREFUSED 127.0.0.1:4319");
+    }) as unknown as typeof fetch;
+
+    const code = await run(["discover"], { env: {}, fetchImpl: brokenFetch, stdout: io.stdout, stderr: io.stderr });
+
+    expect(code).toBe(2);
+    expect(io.err).toEqual([
+      "no gateway found for this Herdr session; check `herdr plugin list` and install it with `herdr plugin link <path-to-herdr-a2a>`",
+    ]);
+  });
+
   it("exits 2 with a single actionable line when the gateway cannot be reached, no stack trace", async () => {
     const io = collector();
     const brokenFetch: typeof fetch = (async () => {

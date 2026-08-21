@@ -1,0 +1,50 @@
+# Herdr plugin manifest.
+#
+# The gateway is a daemon, and Herdr is the right owner of its lifecycle — the
+# same principle the delegation layer applies to its workers (spec §23: Herdr
+# should remain the owner of the terminal/process lifecycle). Declaring it here
+# means the gateway is up whenever Herdr is, with no systemd unit and nothing of
+# ours babysitting a background process.
+#
+#   herdr plugin link   <this directory>      # install
+#   herdr plugin list   --json                # verify
+#   herdr plugin unlink herdr-a2a             # remove
+#
+# Verified against Herdr 0.8.0: the startup command runs with `cwd` set to the
+# plugin root and receives the session's `HERDR_SOCKET_PATH`, plus
+# `HERDR_SESSION`, `HERDR_PLUGIN_ROOT`, `HERDR_PLUGIN_STATE_DIR` and the usual
+# pane/tab/workspace context. Relative commands therefore work, which keeps this
+# file portable — no absolute paths to anyone's home directory.
+
+id = "herdr-a2a"
+name = "herdr-a2a"
+version = "0.1.0"
+description = "A2A v1.0 delegation gateway for coding agents running under Herdr."
+min_herdr_version = "0.8.0"
+platforms = ["linux", "macos"]
+
+# A sequence, not a table: entries are platform-filtered and the first match for
+# the running platform wins.
+#
+# The plugin is installed once and every Herdr session starts its own gateway,
+# each bound to that session's socket on its own ephemeral port. `serve` is
+# idempotent: if a healthy gateway already serves this session it exits rather
+# than binding a second time — a second listener would silently shadow the first
+# instead of failing, which is a far worse outcome than exiting early.
+[[startup]]
+command = ["node", "dist/main.js", "serve"]
+
+# Operator conveniences. Both are read-only diagnostics; nothing here delegates.
+[[actions]]
+id = "doctor"
+title = "herdr-a2a: doctor"
+description = "Check the gateway's readiness and print the discovered agent catalog."
+command = ["node", "dist/main.js", "doctor"]
+contexts = ["global"]
+
+[[actions]]
+id = "discover"
+title = "herdr-a2a: list delegatable agents"
+description = "Show which agents this Herdr session can delegate to right now."
+command = ["node", "dist/bridge/cli.js", "discover"]
+contexts = ["global"]

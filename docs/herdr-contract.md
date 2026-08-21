@@ -427,3 +427,65 @@ bounded fallback probes existed, this same gap was **44 seconds** — the queue 
 event-driven and no further status event arrived after the target went quiet.
 
 A second delegation to the same target reported `spawn.reused` and created no pane.
+
+---
+
+## 16. Plugins — how Herdr can own the gateway
+
+Herdr reads a `herdr-plugin.toml` from a directory registered with
+`herdr plugin link <dir>`. Registration is **global**, not per-session: a linked plugin is
+visible from every Herdr session, including newly created ones.
+
+Required top-level keys, discovered by letting the parser reject each attempt in turn:
+
+```toml
+id = "herdr-a2a"                 # required — the plugin_id
+name = "herdr-a2a"               # required
+version = "0.1.0"                # required
+min_herdr_version = "0.8.0"      # required
+platforms = ["linux", "macos"]   # optional; must not be an empty array if present
+```
+
+Omitting `platforms` is legal but produces the warning "manifest does not declare platforms;
+platform support unknown".
+
+`startup`, `actions`, `events`, `panes`, `link_handlers` and `build` are all **arrays of
+tables**, even where the API response reports `startup` as a single object — Herdr filters the
+array by platform and resolves one entry:
+
+```toml
+[[startup]]
+command = ["node", "dist/main.js", "serve"]
+
+[[actions]]
+id = "doctor"
+title = "herdr-a2a: doctor"
+command = ["node", "dist/main.js", "doctor"]
+contexts = ["global"]            # global | workspace | tab | pane | selection
+```
+
+### Startup execution environment
+
+Verified by having a probe plugin dump its own environment:
+
+- `cwd` is the **plugin root**, so relative commands work and a manifest need not embed
+  absolute paths.
+- The process receives the full session context — `HERDR_SOCKET_PATH`, `HERDR_ENV`,
+  `HERDR_PANE_ID`, `HERDR_TAB_ID`, `HERDR_WORKSPACE_ID`, `HERDR_BIN_PATH` — plus
+  `HERDR_SESSION`, `HERDR_PLUGIN_ID`, `HERDR_PLUGIN_ROOT`, `HERDR_PLUGIN_STATE_DIR`,
+  `HERDR_PLUGIN_CONFIG_DIR`, `HERDR_PLUGIN_EVENT` and `HERDR_PLUGIN_CONTEXT_JSON`.
+- `plugin.log.list` shows the run with `event: "startup"` and a live `status`, so a crash is
+  visible rather than silent.
+
+### Two consequences that shaped the gateway
+
+1. **The hook fires at server boot only.** Linking a plugin into an already-running Herdr does
+   not start it, so an installer has to start the process itself for the current session.
+2. **Herdr does not wait for a clean exit.** On session shutdown the plugin process is killed
+   without its `SIGTERM` handler running, so any file it publishes must be treated as
+   potentially stale by readers and pruned by the next start — not merely deleted on exit.
+
+### Not available
+
+There is no startup/autostart hook in `config.toml`, and no way to re-trigger plugin startup
+on a running server. `server.reload_config` reloads configuration, not plugins.

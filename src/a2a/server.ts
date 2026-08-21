@@ -42,6 +42,7 @@ export class A2AGateway {
   private readonly endpoints = new Map<string, AgentEndpoint>();
   private readonly a2aTasks: DurableA2ATaskStore;
   private server: Server | undefined;
+  private boundBaseUrl: string | undefined;
 
   constructor(private readonly opts: GatewayOptions) {
     // ONE store shared by every endpoint, so any endpoint can resolve any task
@@ -51,7 +52,17 @@ export class A2AGateway {
   }
 
   private get baseUrl(): string {
-    return this.opts.config.gateway.baseUrl.replace(/\/$/, "");
+    const configured = this.opts.config.gateway.baseUrl;
+    if (configured !== undefined) return configured.replace(/\/+$/, "");
+    if (this.boundBaseUrl !== undefined) return this.boundBaseUrl;
+    // No endpoint is reachable before listen() completes. This fallback only
+    // keeps construction deterministic for callers that inspect the app early.
+    return `http://${this.opts.config.gateway.host}:${this.opts.config.gateway.port}`;
+  }
+
+  /** The configured external URL or the concrete address assigned at bind time. */
+  get advertisedBaseUrl(): string {
+    return this.baseUrl;
   }
 
   private build(): Express {
@@ -214,13 +225,18 @@ export class A2AGateway {
   async listen(): Promise<{ host: string; port: number; baseUrl: string }> {
     const { host, port } = this.opts.config.gateway;
     await new Promise<void>((resolve, reject) => {
-      const server = this.app.listen(port, host, () => resolve());
-      server.on("error", reject);
+      const server = this.app.listen(port, host);
       this.server = server;
+      server.once("listening", resolve);
+      server.once("error", reject);
     });
     const address = this.server?.address();
     const actualPort = typeof address === "object" && address ? address.port : port;
-    return { host, port: actualPort, baseUrl: this.baseUrl };
+    const actualHost = typeof address === "object" && address ? address.address : host;
+    if (this.opts.config.gateway.baseUrl === undefined) {
+      this.boundBaseUrl = `http://${urlHost(actualHost)}:${actualPort}`;
+    }
+    return { host: actualHost, port: actualPort, baseUrl: this.baseUrl };
   }
 
   async close(): Promise<void> {
@@ -228,7 +244,12 @@ export class A2AGateway {
     if (!server) return;
     this.server = undefined;
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    this.boundBaseUrl = undefined;
   }
+}
+
+function urlHost(host: string): string {
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
 /** Availability and runtime identity are what a card and executor depend on. */

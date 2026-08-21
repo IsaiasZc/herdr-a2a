@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "bin": {
-    "herdr-a2a": "./dist/bridge/cli.js"
+    "herdr-a2a": "./bin/herdr-a2a"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -18,7 +18,10 @@
     "test:unit": "vitest run tests/unit",
     "test:watch": "vitest",
     "capture-contract": "node scripts/capture-contract.mjs",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "install-local": "node scripts/install.mjs",
+    "uninstall-local": "node scripts/install.mjs uninstall",
+    "status": "node scripts/install.mjs status"
   },
   "dependencies": {
     "@a2a-js/sdk": "^1.0.1",

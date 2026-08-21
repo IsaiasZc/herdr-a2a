@@ -23,12 +23,99 @@ import { A2AGateway } from "./a2a/server.js";
 import { LoggingEventSink } from "./observability/events.js";
 import { JsonLogger } from "./observability/logger.js";
 import { createStores } from "./persistence/index.js";
+import {
+  discoveryPathFor,
+  isAlive,
+  probeHealthy,
+  pruneStaleDescriptors,
+  readDescriptor,
+  removeDescriptor,
+  writeDescriptor,
+} from "./gateway-discovery.js";
 
 export interface Gateway {
   readonly config: AppConfig;
   start(): Promise<{ host: string; port: number; baseUrl: string }>;
   stop(): Promise<void>;
   doctor(): Promise<unknown>;
+}
+
+const GATEWAY_VERSION = "0.1.0";
+
+export interface GatewayServeOptions {
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  createGateway?: () => Promise<Gateway>;
+  stdout?: (line: string) => void;
+  pid?: number;
+  now?: () => Date;
+}
+
+export interface GatewayServeHandle {
+  alreadyRunning: boolean;
+  listening?: { host: string; port: number; baseUrl: string };
+  stop(): Promise<void>;
+}
+
+/**
+ * Starts exactly one gateway for the current Herdr socket. Herdr can invoke
+ * plugin startup more than once, while a second localhost listener may appear
+ * successful yet silently receive no traffic; descriptor health is therefore
+ * checked before the composition root is even built.
+ */
+export async function startGatewayServe(options: GatewayServeOptions = {}): Promise<GatewayServeHandle> {
+  const env = options.env ?? process.env;
+  const socketPath = env["HERDR_SOCKET_PATH"];
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const stdout = options.stdout ?? ((line: string) => process.stdout.write(`${line}\n`));
+
+  if (socketPath && socketPath.length > 0) {
+    // Sweep descriptors left by sessions that have since ended, so the runtime
+    // directory does not collect one dead file per Herdr session.
+    pruneStaleDescriptors();
+
+    const existing = readDescriptor(socketPath);
+    if (existing && isAlive(existing) && (await probeHealthy(existing, fetchImpl))) {
+      stdout(`herdr-a2a gateway already serves this Herdr session at ${existing.baseUrl}`);
+      return { alreadyRunning: true, stop: async () => undefined };
+    }
+    if (existing) removeDescriptor(socketPath);
+  } else {
+    stdout("HERDR_SOCKET_PATH is unset; serving without session discovery");
+  }
+
+  const gateway = await (options.createGateway ?? createGateway)();
+  const listening = await gateway.start();
+  if (socketPath && socketPath.length > 0) {
+    try {
+      writeDescriptor(socketPath, {
+        baseUrl: listening.baseUrl,
+        port: listening.port,
+        pid: options.pid ?? process.pid,
+        herdrSocketPath: socketPath,
+        startedAt: (options.now ?? (() => new Date()))().toISOString(),
+        version: GATEWAY_VERSION,
+      });
+    } catch (err) {
+      await gateway.stop();
+      throw err;
+    }
+  }
+
+  let stopped = false;
+  return {
+    alreadyRunning: false,
+    listening,
+    async stop() {
+      if (stopped) return;
+      stopped = true;
+      try {
+        await gateway.stop();
+      } finally {
+        if (socketPath && socketPath.length > 0) removeDescriptor(socketPath);
+      }
+    },
+  };
 }
 
 export async function createGateway(overrides?: { configPath?: string }): Promise<Gateway> {
@@ -221,8 +308,8 @@ async function wire(deps: {
   });
 
   const { loadSchema } = await import("./herdr/schema-loader.js");
-  const doctor = () =>
-    runDoctor({
+  const doctor = async () => {
+    const report = await runDoctor({
       herdr,
       catalog,
       config,
@@ -234,6 +321,15 @@ async function wire(deps: {
         stores.db.exec("DROP TABLE IF EXISTS _doctor_probe");
       },
     });
+    const socketPath = config.herdr.socketPath;
+    return {
+      ...report,
+      discovery: {
+        path: socketPath ? discoveryPathFor(socketPath) : undefined,
+        descriptorPresent: socketPath ? readDescriptor(socketPath) !== undefined : false,
+      },
+    };
+  };
 
   const http = new A2AGateway({
     catalog,
@@ -391,12 +487,12 @@ async function cli(): Promise<number> {
     return 2;
   }
 
-  const gateway = await createGateway();
-  const listening = await gateway.start();
-  process.stdout.write(`herdr-a2a gateway listening on ${listening.baseUrl}\n`);
+  const served = await startGatewayServe();
+  if (served.alreadyRunning) return 0;
+  process.stdout.write(`herdr-a2a gateway listening on ${served.listening!.baseUrl}\n`);
 
   const shutdown = () => {
-    void gateway.stop().finally(() => process.exit(0));
+    void served.stop().finally(() => process.exit(0));
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);

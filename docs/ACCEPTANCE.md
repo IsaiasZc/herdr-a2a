@@ -102,3 +102,28 @@ A note on how #6 was diagnosed, because it cuts both ways: the fault-injection t
 string-matching the message — exactly what spec §18 forbids. The fix was to make the *fake*
 faithful to the real wire error, not to make the relay guess. `tests/fault-injection/helpers/fakes.ts`
 now exports `targetGoneError()` and `promptStalledError()` for that reason.
+
+## Bugs the installation work found
+
+8. **A second gateway on a fixed port silently served nothing.** Because the Herdr plugin is
+   registered globally, every session starts a gateway — and on this platform a second bind to
+   an already-held `127.0.0.1:4319` does **not** fail: Node resolved the `listen` callback and
+   logged "gateway listening" while `ss` showed one owner and every request went to the first
+   listener. A fixed port was therefore unsalvageable, and EADDRINUSE could not be relied on to
+   detect the collision. Replaced with an ephemeral port plus a per-session discovery file at
+   `$XDG_RUNTIME_DIR/herdr-a2a/<sha256(socket path)[:12]>.json`, and an idempotent `serve` that
+   exits when a healthy gateway already owns the session.
+9. **A shared gateway would have delegated into the wrong Herdr session.** A gateway talks to
+   exactly one Herdr socket, so two sessions sharing one would create panes in the other
+   session's workspace. The descriptor records `herdrSocketPath` and `readDescriptor` rejects a
+   mismatch, which is the guard that makes multi-session use safe.
+10. **The CLI symlink broke on every rebuild.** `tsc` rewrites `dist/` without an executable
+    bit, so a symlink pointing straight at the compiled entry point gave "Permission denied"
+    again after each build. Fixed with a committed `bin/herdr-a2a` launcher that resolves its
+    own symlinks by hand — `readlink -f` is not available on older macOS, and the normal
+    installation *is* a symlink from a bin directory.
+
+Verified live for #8 and #9: two Herdr sessions ran concurrently with gateways on ports 43011
+and 45665, each with its own descriptor keyed to its own socket, the second started by Herdr's
+plugin hook. Stopping a session left an orphan descriptor (Herdr kills plugin processes without
+waiting), which the next gateway start pruned.
