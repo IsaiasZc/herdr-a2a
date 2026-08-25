@@ -23,6 +23,12 @@ description = "A2A v1.0 delegation gateway for coding agents running under Herdr
 min_herdr_version = "0.8.0"
 platforms = ["linux", "macos"]
 
+[[build]]
+command = ["npm", "ci"]
+
+[[build]]
+command = ["npm", "run", "build"]
+
 # A sequence, not a table: entries are platform-filtered and the first match for
 # the running platform wins.
 #
