@@ -5,3 +5,7 @@ dist/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+.env*
+.DS_Store
+*.log
+coverage/
