@@ -40,7 +40,7 @@ export interface Gateway {
   doctor(): Promise<unknown>;
 }
 
-const GATEWAY_VERSION = "0.1.0";
+const GATEWAY_VERSION = "0.0.1";
 
 export interface GatewayServeOptions {
   env?: NodeJS.ProcessEnv;

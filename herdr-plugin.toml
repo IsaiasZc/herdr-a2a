@@ -18,7 +18,7 @@
 
 id = "herdr-a2a"
 name = "herdr-a2a"
-version = "0.1.0"
+version = "0.0.1"
 description = "A2A v1.0 delegation gateway for coding agents running under Herdr."
 min_herdr_version = "0.8.0"
 platforms = ["linux", "macos"]

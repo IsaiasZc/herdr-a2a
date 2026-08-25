@@ -104,7 +104,7 @@ export function gatewayCard(baseUrl: string, agentCount: number): AgentCard {
       { url: `${root}/a2a`, protocolBinding: "JSONRPC", tenant: "", protocolVersion: PROTOCOL_VERSION },
     ],
     provider: { organization: "herdr-a2a", url: root },
-    version: "0.1.0",
+    version: "0.0.1",
     capabilities: {
       streaming: true,
       pushNotifications: false,

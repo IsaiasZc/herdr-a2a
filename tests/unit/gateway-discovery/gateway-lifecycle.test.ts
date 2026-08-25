@@ -19,7 +19,7 @@ function descriptor(overrides: Partial<GatewayDescriptor> = {}): GatewayDescript
     pid: process.pid,
     herdrSocketPath: socketPath,
     startedAt: "2026-08-20T12:00:00.000Z",
-    version: "0.1.0",
+    version: "0.0.1",
     ...overrides,
   };
 }
