@@ -1,6 +1,6 @@
 /**
  * Config loading: YAML file (optional) < defaults, then caller `overrides` on
- * top, then zod validation. See docs/IMPLEMENTATION-BRIEF.md and spec §6.
+ * top, then zod validation.
  */
 
 import { existsSync, readFileSync } from "node:fs";

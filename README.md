@@ -144,9 +144,7 @@ Coding agent (Claude Code / Codex / OpenCode / …)
 ```
 
 For the Herdr behavior verified by this project, see
-[`docs/herdr-contract.md`](docs/herdr-contract.md). Development details and
-implementation constraints are in
-[`docs/IMPLEMENTATION-BRIEF.md`](docs/IMPLEMENTATION-BRIEF.md).
+[`docs/herdr-contract.md`](docs/herdr-contract.md).
 
 ### Tests
 
