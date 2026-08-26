@@ -10,7 +10,7 @@
 #   herdr plugin list   --json                # verify
 #   herdr plugin unlink herdr-a2a             # remove
 #
-# Verified against Herdr 0.8.0: the startup command runs with `cwd` set to the
+# Verified against Herdr 0.8.2: the startup command runs with `cwd` set to the
 # plugin root and receives the session's `HERDR_SOCKET_PATH`, plus
 # `HERDR_SESSION`, `HERDR_PLUGIN_ROOT`, `HERDR_PLUGIN_STATE_DIR` and the usual
 # pane/tab/workspace context. Relative commands therefore work, which keeps this
@@ -21,7 +21,7 @@ name = "herdr-a2a"
 version = "0.0.1"
 description = "A2A v1.0 delegation gateway for coding agents running under Herdr."
 min_herdr_version = "0.8.0"
-platforms = ["linux", "macos"]
+platforms = ["linux", "macos", "windows"]
 
 [[build]]
 command = ["npm", "ci"]

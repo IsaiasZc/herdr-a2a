@@ -13,7 +13,7 @@ Herdr remains responsible for running and arranging the agent terminals.
 ### Requirements
 
 - Node.js 20 or later
-- Herdr 0.8.0 or later, running on Linux or macOS
+- Herdr 0.8.0 or later on Linux/macOS, or Herdr 0.8.2 or later on Windows
 - A Herdr pane: run the installer from inside a Herdr session
 
 Install from source:
@@ -24,6 +24,20 @@ cd herdr-a2a
 node scripts/install.mjs
 ```
 
+On Windows, from PowerShell:
+
+```powershell
+git clone https://github.com/IsaiasZc/herdr-a2a.git
+cd herdr-a2a
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+
+The Windows installer uses only your user profile: it creates a `herdr-a2a.cmd`
+launcher under `%LOCALAPPDATA%\herdr-a2a\bin`, adds that directory to your user
+`PATH`, and uses directory junctions for agent skills. Open a new terminal after
+installation. Herdr uses a Windows named pipe for `HERDR_SOCKET_PATH`; the
+gateway maps it to Node's named-pipe namespace automatically.
+
 The installer is safe to run again. It links the Herdr plugin, installs the
 `herdr-a2a` command on your `PATH`, and makes the delegation skill available to
 installed coding agents. It also starts the gateway for the current session.
@@ -32,6 +46,14 @@ Check that everything is ready:
 
 ```bash
 node scripts/install.mjs status
+herdr-a2a doctor
+herdr-a2a discover
+```
+
+On Windows, use the same installer with `status`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1 status
 herdr-a2a doctor
 herdr-a2a discover
 ```
@@ -101,10 +123,22 @@ git pull
 node scripts/install.mjs
 ```
 
+On Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+
 Remove the links created by the installer without deleting the repository:
 
 ```bash
 node scripts/install.mjs uninstall
+```
+
+On Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1 uninstall
 ```
 
 ## Troubleshooting

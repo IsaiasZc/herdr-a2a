@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  pull_request:
   push:
     tags:
       - "v*"
@@ -13,7 +14,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - name: Install Herdr
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+      - name: Exercise the installer lifecycle
+        shell: pwsh
+        run: |
+          ./scripts/install.ps1
+          ./scripts/install.ps1 status
+          $env:HERDR_ENV = "1"
+          npm run test:integration
+          ./scripts/install.ps1 uninstall
+
   release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: windows-installer
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
