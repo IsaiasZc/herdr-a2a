@@ -26,6 +26,7 @@ describe("Windows installer", () => {
 
     expect(workflow).toContain("pull_request:");
     expect(workflow).toContain("runs-on: windows-latest");
+    expect(workflow).toContain("node-version: 22");
     expect(workflow).toContain("scripts/install.ps1");
     expect(workflow).toContain("scripts/install.ps1 uninstall");
     expect(workflow).toContain("github.event_name == 'push'");
