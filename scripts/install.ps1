@@ -190,10 +190,18 @@ function Install-Plugin {
     if (-not (Test-SamePath $existingRoot $Repo)) {
       throw "plugin '$PluginId' is already registered from '$existingRoot'; unlink it explicitly if you want to replace it"
     }
-    Invoke-Herdr @("plugin", "unlink", $PluginId) | Out-Null
+    try {
+      Invoke-Herdr @("plugin", "unlink", $PluginId) | Out-Null
+    } catch {
+      Write-Warn "could not unlink the existing plugin registration: $(Get-ShortError $_)"
+    }
   }
-  Invoke-Herdr @("plugin", "link", $Repo) | Out-Null
-  Write-Ok "linked $PluginId from $Repo"
+  try {
+    Invoke-Herdr @("plugin", "link", $Repo) | Out-Null
+    Write-Ok "linked $PluginId from $Repo"
+  } catch {
+    Write-Warn "could not link the plugin: $(Get-ShortError $_)"
+  }
 }
 
 function Install-Cli {
