@@ -19,6 +19,7 @@ describe("Windows installer", () => {
     expect(source).toContain('"herdr-a2a.cmd"');
     expect(source).toContain("New-Item -ItemType Junction");
     expect(source).toContain("[Environment]::SetEnvironmentVariable");
+    expect(source).not.toContain("$Label:");
   });
 
   it("exercises the installer on a Windows release runner", () => {

@@ -64,7 +64,7 @@ function Install-Junction([string]$Link, [string]$Target, [string]$Label) {
   if (Test-Path -LiteralPath $Link) {
     $item = Get-Item -LiteralPath $Link -Force
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
-      Write-Warn "$Label: $Link exists and is not a link — left untouched"
+      Write-Warn "${Label}: $Link exists and is not a link — left untouched"
       return
     }
     Remove-Item -LiteralPath $Link -Force
