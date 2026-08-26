@@ -6,6 +6,19 @@ import type { Clock, LaunchabilityResolver } from "../core/ports.js";
 import type { Launchable } from "../core/model.js";
 import type { LaunchabilityCache, LaunchabilityCacheRecord } from "./cache.js";
 
+/**
+ * Windows never resolves a bare command name — cmd.exe/PowerShell append each
+ * `PATHEXT` extension in turn (falling back to a hardcoded default list when
+ * the env var is unset, same as the shell does). Unix executables carry no
+ * extension, so there this is just `[""]`. Reads `process.platform` (not a
+ * destructured import) so tests can stub it per-case.
+ */
+function candidateSuffixes(env: NodeJS.ProcessEnv): readonly string[] {
+  if (process.platform !== "win32") return [""];
+  const pathExt = env["PATHEXT"] || ".COM;.EXE;.BAT;.CMD";
+  return pathExt.split(";").filter(Boolean);
+}
+
 export interface LaunchabilityResolution {
   launchable: Launchable;
   reason: string;
@@ -54,15 +67,18 @@ export class LaunchabilityResolverImpl implements LaunchabilityResolver {
     }
 
     const pathEntries = (this.opts.path ?? process.env["PATH"] ?? "").split(delimiter).filter(Boolean);
+    const suffixes = candidateSuffixes(process.env);
     for (const entry of pathEntries) {
-      const candidate = join(entry, executable);
-      if (!await this.existsExecutable(candidate)) continue;
-      return this.persist(kind, {
-        launchable: "yes",
-        reason: `resolved executable ${executable} on PATH`,
-        executablePath: candidate,
-        checkedAt: this.opts.clock.now().toISOString(),
-      });
+      for (const suffix of suffixes) {
+        const candidate = join(entry, executable + suffix);
+        if (!await this.existsExecutable(candidate)) continue;
+        return this.persist(kind, {
+          launchable: "yes",
+          reason: `resolved executable ${executable}${suffix} on PATH`,
+          executablePath: candidate,
+          checkedAt: this.opts.clock.now().toISOString(),
+        });
+      }
     }
     return this.persist(kind, {
       launchable: "no",

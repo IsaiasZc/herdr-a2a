@@ -206,18 +206,27 @@ describe("launchability", () => {
   });
 
   test("uses a manifest command hint instead of assuming the kind label is a binary", async () => {
-    const checked: string[] = [];
-    const resolver = new LaunchabilityResolverImpl({
-      cache: new InMemoryLaunchabilityCache(),
-      ttlMs: 1_000,
-      clock: clock(),
-      path: join("/", "bin"),
-      commandHintForKind: () => "actual-binary",
-      existsExecutable: async (path) => { checked.push(path); return true; },
-    });
-    const expectedPath = join("/", "bin", "actual-binary");
-    await expect(resolver.resolve("runtime-label")).resolves.toMatchObject({ executablePath: expectedPath });
-    expect(checked).toEqual([expectedPath]);
+    // Pinned to a non-Windows platform: this test is about the command-hint
+    // substitution, not PATHEXT suffix handling (covered separately in
+    // tests/unit/catalog/launchability.test.ts).
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "linux" });
+    try {
+      const checked: string[] = [];
+      const resolver = new LaunchabilityResolverImpl({
+        cache: new InMemoryLaunchabilityCache(),
+        ttlMs: 1_000,
+        clock: clock(),
+        path: join("/", "bin"),
+        commandHintForKind: () => "actual-binary",
+        existsExecutable: async (path) => { checked.push(path); return true; },
+      });
+      const expectedPath = join("/", "bin", "actual-binary");
+      await expect(resolver.resolve("runtime-label")).resolves.toMatchObject({ executablePath: expectedPath });
+      expect(checked).toEqual([expectedPath]);
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    }
   });
 });
 
