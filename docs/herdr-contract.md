@@ -444,7 +444,7 @@ Required top-level keys, discovered by letting the parser reject each attempt in
 ```toml
 id = "herdr-a2a"                 # required — the plugin_id
 name = "herdr-a2a"               # required
-version = "0.0.1"                # required
+version = "0.0.2"                # required
 min_herdr_version = "0.8.0"      # required
 platforms = ["linux", "macos", "windows"] # optional; must not be an empty array if present
 ```
