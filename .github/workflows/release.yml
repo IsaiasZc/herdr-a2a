@@ -29,6 +29,15 @@ jobs:
       - name: Install Herdr
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+      - name: Expose Herdr to this job
+        shell: pwsh
+        run: |
+          $herdrBin = Join-Path $env:LOCALAPPDATA "Programs\Herdr\bin"
+          $herdrExe = Join-Path $herdrBin "herdr.exe"
+          if (-not (Test-Path -LiteralPath $herdrExe -PathType Leaf)) { throw "Herdr was not installed at $herdrExe" }
+          "HERDR_BIN_PATH=$herdrExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $herdrBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $herdrExe --version
       - name: Exercise the installer lifecycle
         shell: pwsh
         run: |
