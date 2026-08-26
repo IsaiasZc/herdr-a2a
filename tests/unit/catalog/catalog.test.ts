@@ -211,12 +211,13 @@ describe("launchability", () => {
       cache: new InMemoryLaunchabilityCache(),
       ttlMs: 1_000,
       clock: clock(),
-      path: "/bin",
+      path: join("/", "bin"),
       commandHintForKind: () => "actual-binary",
       existsExecutable: async (path) => { checked.push(path); return true; },
     });
-    await expect(resolver.resolve("runtime-label")).resolves.toMatchObject({ executablePath: "/bin/actual-binary" });
-    expect(checked).toEqual(["/bin/actual-binary"]);
+    const expectedPath = join("/", "bin", "actual-binary");
+    await expect(resolver.resolve("runtime-label")).resolves.toMatchObject({ executablePath: expectedPath });
+    expect(checked).toEqual([expectedPath]);
   });
 });
 

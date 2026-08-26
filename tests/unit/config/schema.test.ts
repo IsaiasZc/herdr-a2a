@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import type { AppConfig } from "../../../src/core/ports.js";
@@ -33,8 +35,9 @@ describe("buildDefaultConfig", () => {
   });
 
   it("respects XDG_STATE_HOME for dbPath", () => {
-    const config = buildDefaultConfig({ XDG_STATE_HOME: "/custom/state" });
-    expect(config.dbPath).toBe("/custom/state/herdr-a2a/state.sqlite");
+    const stateHome = join("/", "custom", "state");
+    const config = buildDefaultConfig({ XDG_STATE_HOME: stateHome });
+    expect(config.dbPath).toBe(join(stateHome, "herdr-a2a", "state.sqlite"));
   });
 
   it("respects HERDR_SOCKET_PATH and HERDR_BIN_PATH", () => {
