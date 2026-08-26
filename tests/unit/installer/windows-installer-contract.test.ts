@@ -20,6 +20,8 @@ describe("Windows installer", () => {
     expect(source).toContain("New-Item -ItemType Junction");
     expect(source).toContain("[Environment]::SetEnvironmentVariable");
     expect(source).not.toContain("$Label:");
+    expect(source).toContain("if ($LASTEXITCODE -ne 0)");
+    expect(source).toContain("exit 0");
   });
 
   it("exercises the installer on a Windows release runner", () => {

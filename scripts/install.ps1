@@ -105,6 +105,9 @@ function Ensure-Path {
 
 function Invoke-Herdr([string[]]$Arguments) {
   & $Herdr @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "herdr $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+  }
 }
 
 function Test-PluginLinked {
@@ -226,8 +229,12 @@ function Uninstall {
   Write-Host "Removing herdr-a2a links (the repo itself is left alone)"
   Write-Step "Herdr plugin"
   if (Test-PluginLinked) {
-    Invoke-Herdr @("plugin", "unlink", $PluginId) | Out-Null
-    Write-Ok "unlinked"
+    try {
+      Invoke-Herdr @("plugin", "unlink", $PluginId) | Out-Null
+      Write-Ok "unlinked"
+    } catch {
+      Write-Warn "could not unlink the plugin: $(Get-ShortError $_)"
+    }
   } else { Write-Skip "not linked" }
   Write-Step "CLI"
   if (Test-OurCli) {
@@ -246,6 +253,7 @@ try {
     "status" { Status }
     "uninstall" { Uninstall }
   }
+  exit 0
 } catch {
   Write-Error "failed: $(Get-ShortError $_)"
   exit 1
