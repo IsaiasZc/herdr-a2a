@@ -44,13 +44,31 @@ function Get-ShortError($ErrorRecord) {
   return (($ErrorRecord | Out-String).Trim() -split "`r?`n")[0]
 }
 
+function Get-NormalizedPath([string]$Path) {
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  $value = $Path
+  if ($value.StartsWith("\\?\")) { $value = $value.Substring(4) }
+  return [IO.Path]::GetFullPath($value).TrimEnd('\')
+}
+
+function Test-SamePath([string]$A, [string]$B) {
+  try {
+    $left = Get-NormalizedPath $A
+    $right = Get-NormalizedPath $B
+    if ($null -eq $left -or $null -eq $right) { return $false }
+    return [StringComparer]::OrdinalIgnoreCase.Equals($left, $right)
+  } catch {
+    return $false
+  }
+}
+
 function Test-OurJunction([string]$Link, [string]$Target) {
   if (-not (Test-Path -LiteralPath $Link)) { return $false }
   try {
     $item = Get-Item -LiteralPath $Link -Force
     if ($item.LinkType -ne "Junction" -or $null -eq $item.Target) { return $false }
-    $actual = [IO.Path]::GetFullPath([string]($item.Target | Select-Object -First 1))
-    return $actual -eq [IO.Path]::GetFullPath($Target)
+    $actual = [string]($item.Target | Select-Object -First 1)
+    return Test-SamePath $actual $Target
   } catch {
     return $false
   }
@@ -59,18 +77,20 @@ function Test-OurJunction([string]$Link, [string]$Target) {
 function Install-Junction([string]$Link, [string]$Target, [string]$Label) {
   if (Test-OurJunction $Link $Target) {
     Write-Skip "$Label already linked"
-    return
+    return $true
   }
   if (Test-Path -LiteralPath $Link) {
     $item = Get-Item -LiteralPath $Link -Force
-    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+      Write-Warn "${Label}: $Link is already a link owned by something else — left untouched"
+    } else {
       Write-Warn "${Label}: $Link exists and is not a link — left untouched"
-      return
     }
-    Remove-Item -LiteralPath $Link -Force
+    return $false
   }
   New-Item -ItemType Junction -Path $Link -Target $Target | Out-Null
   Write-Ok "$Label → $Link"
+  return $true
 }
 
 function Remove-Junction([string]$Link, [string]$Target, [string]$Label) {
@@ -103,6 +123,20 @@ function Ensure-Path {
   if (($env:Path -split ";") -notcontains $BinDir) { $env:Path += ";$BinDir" }
 }
 
+function Remove-OurPath {
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  if ($null -eq $userPath) { return }
+  $target = $BinDir.TrimEnd('\')
+  $parts = @($userPath -split ";" | Where-Object { $_ })
+  $kept = @($parts | Where-Object { $_.TrimEnd('\') -ine $target })
+  if ($kept.Count -ne $parts.Count) {
+    [Environment]::SetEnvironmentVariable("Path", ($kept -join ";"), "User")
+    Write-Ok "removed $BinDir from your user PATH"
+  }
+  $processParts = @($env:Path -split ";" | Where-Object { $_ -and $_.TrimEnd('\') -ine $target })
+  $env:Path = $processParts -join ";"
+}
+
 function Invoke-Herdr([string[]]$Arguments) {
   & $Herdr @Arguments
   if ($LASTEXITCODE -ne 0) {
@@ -110,13 +144,19 @@ function Invoke-Herdr([string[]]$Arguments) {
   }
 }
 
-function Test-PluginLinked {
+function Get-PluginRegistration {
   try {
     $json = (Invoke-Herdr @("plugin", "list", "--json") | Out-String) | ConvertFrom-Json
-    return $null -ne @($json.result.plugins | Where-Object { $_.plugin_id -eq $PluginId })[0]
+    return @($json.result.plugins | Where-Object { $_.plugin_id -eq $PluginId })[0]
   } catch {
-    return $false
+    return $null
   }
+}
+
+function Test-PluginLinkedByUs {
+  $plugin = Get-PluginRegistration
+  if ($null -eq $plugin) { return $false }
+  return Test-SamePath ([string]$plugin.plugin_root) $Repo
 }
 
 function Get-Gateway {
@@ -131,9 +171,9 @@ function Get-Gateway {
 function Build {
   Write-Step "Building"
   if (-not (Test-Path -LiteralPath (Join-Path $Repo "node_modules"))) {
-    & $Npm "install" "--silent"
-    if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE" }
-    Write-Ok "dependencies installed"
+    & $Npm "ci" "--silent"
+    if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+    Write-Ok "dependencies installed from package-lock.json"
   } else {
     Write-Skip "dependencies already installed"
   }
@@ -144,13 +184,16 @@ function Build {
 
 function Install-Plugin {
   Write-Step "Herdr plugin (so Herdr owns the gateway)"
-  if (Test-PluginLinked) { Invoke-Herdr @("plugin", "unlink", $PluginId) | Out-Null }
-  try {
-    Invoke-Herdr @("plugin", "link", $Repo) | Out-Null
-    Write-Ok "linked $PluginId from $Repo"
-  } catch {
-    Write-Warn "could not link the plugin: $(Get-ShortError $_)"
+  $existing = Get-PluginRegistration
+  if ($null -ne $existing) {
+    $existingRoot = [string]$existing.plugin_root
+    if (-not (Test-SamePath $existingRoot $Repo)) {
+      throw "plugin '$PluginId' is already registered from '$existingRoot'; unlink it explicitly if you want to replace it"
+    }
+    Invoke-Herdr @("plugin", "unlink", $PluginId) | Out-Null
   }
+  Invoke-Herdr @("plugin", "link", $Repo) | Out-Null
+  Write-Ok "linked $PluginId from $Repo"
 }
 
 function Install-Cli {
@@ -173,10 +216,11 @@ function Install-Skill {
       Write-Skip "$($skillDir.Agent): $($skillDir.Dir) does not exist — skipped"
       continue
     }
-    Install-Junction (Join-Path $skillDir.Dir $SkillName) $SkillSource "$($skillDir.Agent) skill"
-    $installed += 1
+    if (Install-Junction (Join-Path $skillDir.Dir $SkillName) $SkillSource "$($skillDir.Agent) skill") {
+      $installed += 1
+    }
   }
-  if ($installed -eq 0) { Write-Warn "no agent skills directory found; the CLI still works on its own" }
+  if ($installed -eq 0) { Write-Warn "no agent skill could be linked; the CLI still works on its own" }
 }
 
 function Start-GatewayNow {
@@ -213,7 +257,15 @@ function Install {
 
 function Status {
   Write-Host "herdr-a2a at $Repo`n"
-  Write-Host "plugin:   $(if (Test-PluginLinked) { "linked" } else { "NOT linked" })"
+  $plugin = Get-PluginRegistration
+  $pluginState = if ($null -eq $plugin) {
+    "NOT linked"
+  } elseif (Test-SamePath ([string]$plugin.plugin_root) $Repo) {
+    "linked"
+  } else {
+    "CONFLICT (registered from $([string]$plugin.plugin_root))"
+  }
+  Write-Host "plugin:   $pluginState"
   Write-Host "cli:      $(if (Test-OurCli) { $CliPath } else { "NOT linked" })"
   foreach ($skillDir in $SkillDirs) {
     $link = Join-Path $skillDir.Dir $SkillName
@@ -228,18 +280,27 @@ function Status {
 function Uninstall {
   Write-Host "Removing herdr-a2a links (the repo itself is left alone)"
   Write-Step "Herdr plugin"
-  if (Test-PluginLinked) {
+  $plugin = Get-PluginRegistration
+  if ($null -eq $plugin) {
+    Write-Skip "not linked"
+  } elseif (Test-SamePath ([string]$plugin.plugin_root) $Repo) {
     try {
       Invoke-Herdr @("plugin", "unlink", $PluginId) | Out-Null
       Write-Ok "unlinked"
     } catch {
       Write-Warn "could not unlink the plugin: $(Get-ShortError $_)"
     }
-  } else { Write-Skip "not linked" }
+  } else {
+    Write-Skip "plugin with this ID belongs to another checkout — left untouched"
+  }
   Write-Step "CLI"
   if (Test-OurCli) {
     Remove-Item -LiteralPath $CliPath -Force
     Write-Ok "herdr-a2a removed"
+    Remove-OurPath
+    if ((Test-Path -LiteralPath $BinDir -PathType Container) -and @(Get-ChildItem -LiteralPath $BinDir -Force).Count -eq 0) {
+      Remove-Item -LiteralPath $BinDir -Force
+    }
   } else { Write-Skip "herdr-a2a not installed by us" }
   Write-Step "Skill"
   foreach ($skillDir in $SkillDirs) {

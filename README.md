@@ -13,7 +13,7 @@ Herdr remains responsible for running and arranging the agent terminals.
 ### Requirements
 
 - Node.js 20 or later
-- Herdr 0.8.0 or later on Linux/macOS, or Herdr 0.8.2 or later on Windows
+- Herdr 0.8.2 or later
 - A Herdr pane: run the installer from inside a Herdr session
 
 Install from source:
@@ -37,6 +37,11 @@ launcher under `%LOCALAPPDATA%\herdr-a2a\bin`, adds that directory to your user
 `PATH`, and uses directory junctions for agent skills. Open a new terminal after
 installation. Herdr uses a Windows named pipe for `HERDR_SOCKET_PATH`; the
 gateway maps it to Node's named-pipe namespace automatically.
+
+Both installers preserve pre-existing files, links, and plugin registrations
+that do not belong to the current checkout instead of replacing them silently.
+If an existing `herdr-a2a` installation conflicts, remove or unlink it explicitly
+before installing this checkout.
 
 The installer is safe to run again. It links the Herdr plugin, installs the
 `herdr-a2a` command on your `PATH`, and makes the delegation skill available to
@@ -146,6 +151,7 @@ powershell -ExecutionPolicy Bypass -File scripts/install.ps1 uninstall
 | Problem | What to do |
 | --- | --- |
 | `herdr-a2a: command not found` | Add `~/.local/bin` or `~/bin` to your `PATH`, or run `./bin/herdr-a2a` from the repository. |
+| Existing `herdr-a2a` link/plugin is reported as a conflict | Remove or unlink the old installation explicitly, then rerun the installer. The installer will not overwrite it automatically. |
 | No gateway for this Herdr session | Confirm you are in a Herdr pane, run `herdr plugin list`, then run the installer again. |
 | Cannot reach the gateway | Restart Herdr, or run `node dist/main.js serve`. You can also supply `--base-url` or set `HERDR_A2A_URL`. |
 | `discover` shows no agents | Run `herdr-a2a doctor`; the agent may be installed but unavailable on `PATH`. |
@@ -183,8 +189,9 @@ For the Herdr behavior verified by this project, see
 ### Tests
 
 ```bash
+npm run typecheck
 npm test
-npx vitest run tests/integration
+npm run test:integration
 ```
 
 Unit tests do not require a live Herdr instance. Integration tests do.

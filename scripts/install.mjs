@@ -78,25 +78,23 @@ async function isSymlinkTo(link, target) {
 async function linkOnce(link, target, label) {
   if (await isSymlinkTo(link, target)) {
     skip(`${label} already linked`);
-    return;
+    return true;
   }
   try {
     const stat = await lstat(link);
     if (stat.isSymbolicLink()) {
-      // A symlink pointing somewhere else is ours to replace.
-      await rm(link);
+      warn(`${label}: ${link} is already a symlink owned by something else — left untouched`);
     } else {
-      // A real file or directory is NOT ours to delete. Refuse loudly rather
-      // than destroying something the user put there.
       warn(`${label}: ${link} exists and is not a symlink — left untouched`);
-      return;
     }
+    return false;
   } catch {
     /* absent, which is the happy path */
   }
   await mkdir(path.dirname(link), { recursive: true });
   await symlink(target, link);
   ok(`${label} → ${link}`);
+  return true;
 }
 
 async function unlinkOnce(link, target, label) {
@@ -137,6 +135,11 @@ async function pluginLinked() {
   }
 }
 
+function pluginIsOurs(plugin) {
+  if (!plugin?.plugin_root) return false;
+  return path.resolve(plugin.plugin_root) === REPO;
+}
+
 async function gatewayHealthy() {
   // Ask the CLI, which already knows how to find this session's gateway.
   try {
@@ -157,8 +160,8 @@ async function gatewayHealthy() {
 async function build() {
   step("Building");
   if (!existsSync(path.join(REPO, "node_modules"))) {
-    await run("npm", ["install", "--silent"], { cwd: REPO, maxBuffer: 32 * 1024 * 1024 });
-    ok("dependencies installed");
+    await run("npm", ["ci", "--silent"], { cwd: REPO, maxBuffer: 32 * 1024 * 1024 });
+    ok("dependencies installed from package-lock.json");
   } else {
     skip("dependencies already installed");
   }
@@ -169,18 +172,17 @@ async function build() {
 async function installPlugin() {
   step("Herdr plugin (so Herdr owns the gateway)");
   const existing = await pluginLinked();
+  if (existing && !pluginIsOurs(existing)) {
+    throw new Error(
+      `plugin '${PLUGIN_ID}' is already registered from '${existing.plugin_root}'; unlink it explicitly if you want to replace it`,
+    );
+  }
   if (existing) {
-    // Re-link so a moved repo or an edited manifest is picked up.
-    await run(HERDR, ["plugin", "unlink", PLUGIN_ID]).catch(() => {});
+    // Re-link only our own checkout so a moved manifest edit is picked up.
+    await run(HERDR, ["plugin", "unlink", PLUGIN_ID]);
   }
-  try {
-    await run(HERDR, ["plugin", "link", REPO]);
-    ok(`linked ${PLUGIN_ID} from ${REPO}`);
-  } catch (err) {
-    warn(`could not link the plugin: ${short(err)}`);
-    return false;
-  }
-  return true;
+  await run(HERDR, ["plugin", "link", REPO]);
+  ok(`linked ${PLUGIN_ID} from ${REPO}`);
 }
 
 async function installCli() {
@@ -205,10 +207,9 @@ async function installSkill() {
       skip(`${agent}: ${dir} does not exist — skipped`);
       continue;
     }
-    await linkOnce(path.join(dir, SKILL_NAME), SKILL_SOURCE, `${agent} skill`);
-    installed += 1;
+    if (await linkOnce(path.join(dir, SKILL_NAME), SKILL_SOURCE, `${agent} skill`)) installed += 1;
   }
-  if (installed === 0) warn("no agent skills directory found; the CLI still works on its own");
+  if (installed === 0) warn("no agent skill could be linked; the CLI still works on its own");
 }
 
 /**
@@ -273,7 +274,12 @@ async function status() {
   console.log(`herdr-a2a at ${REPO}\n`);
 
   const plugin = await pluginLinked();
-  console.log(`plugin:   ${plugin ? `linked (enabled: ${plugin.enabled})` : "NOT linked"}`);
+  const pluginState = !plugin
+    ? "NOT linked"
+    : pluginIsOurs(plugin)
+      ? `linked (enabled: ${plugin.enabled})`
+      : `CONFLICT (registered from ${plugin.plugin_root})`;
+  console.log(`plugin:   ${pluginState}`);
 
   const { dir } = await chooseBinDir();
   const cliLink = path.join(dir, "herdr-a2a");
@@ -298,11 +304,14 @@ async function uninstall() {
   console.log("Removing herdr-a2a links (the repo itself is left alone)");
 
   step("Herdr plugin");
-  if (await pluginLinked()) {
-    await run(HERDR, ["plugin", "unlink", PLUGIN_ID]).catch(() => {});
+  const plugin = await pluginLinked();
+  if (!plugin) {
+    skip("not linked");
+  } else if (pluginIsOurs(plugin)) {
+    await run(HERDR, ["plugin", "unlink", PLUGIN_ID]).catch((err) => warn(`could not unlink the plugin: ${short(err)}`));
     ok("unlinked");
   } else {
-    skip("not linked");
+    skip("plugin with this ID belongs to another checkout — left untouched");
   }
 
   step("CLI");

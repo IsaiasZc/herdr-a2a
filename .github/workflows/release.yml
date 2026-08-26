@@ -7,7 +7,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -25,10 +25,14 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run build
+      - run: npm test
+
       - name: Install Herdr
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+
       - name: Expose Herdr to this job
         shell: pwsh
         run: |
@@ -38,6 +42,29 @@ jobs:
           "HERDR_BIN_PATH=$herdrExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $herdrBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & $herdrExe --version
+
+      - name: Verify foreign skill links are preserved
+        shell: pwsh
+        run: |
+          $skillDir = Join-Path $HOME ".codex\skills"
+          $foreignTarget = Join-Path $env:RUNNER_TEMP "foreign-herdr-a2a-skill"
+          $link = Join-Path $skillDir "herdr-a2a"
+          New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
+          New-Item -ItemType Directory -Path $foreignTarget -Force | Out-Null
+          if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link -Force }
+          New-Item -ItemType Junction -Path $link -Target $foreignTarget | Out-Null
+
+          ./scripts/install.ps1
+          ./scripts/install.ps1 uninstall
+
+          $item = Get-Item -LiteralPath $link -Force
+          $actual = [IO.Path]::GetFullPath([string]($item.Target | Select-Object -First 1))
+          $expected = [IO.Path]::GetFullPath($foreignTarget)
+          if ($actual -ne $expected) { throw "installer replaced or removed a foreign skill junction" }
+
+          Remove-Item -LiteralPath $link -Force
+          Remove-Item -LiteralPath $foreignTarget -Recurse -Force
+
       - name: Exercise the installer lifecycle
         shell: pwsh
         run: |
@@ -51,6 +78,8 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: windows-installer
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
