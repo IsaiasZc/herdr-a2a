@@ -34,8 +34,19 @@ const MAX_REQUEST_TIMEOUT_MS = 320_000;
  * Their cost is bounded by the number of live workers, not by request rate.
  */
 const MAX_CONCURRENT_REQUESTS = 48;
+const WINDOWS_PIPE_PREFIXES = ["\\\\.\\pipe\\", "\\\\?\\pipe\\"];
 
 type ResultFrame = Record<string, unknown> & { type: string };
+
+/**
+ * Herdr exposes a filesystem socket path on Unix and a marker-file path on
+ * Windows. Its Windows IPC implementation maps that marker path into the
+ * generic named-pipe namespace; Node requires the namespace prefix explicitly.
+ */
+export function localSocketEndpointFor(socketPath: string, platform = process.platform): string {
+  if (platform !== "win32" || WINDOWS_PIPE_PREFIXES.some((prefix) => socketPath.startsWith(prefix))) return socketPath;
+  return `\\\\.\\pipe\\${socketPath}`;
+}
 
 /**
  * Sends exactly one request on a fresh connection and reads its single reply.
@@ -53,7 +64,7 @@ async function requestOnce(
   params: Record<string, unknown>,
   timeoutMs: number,
 ): Promise<ResultFrame> {
-  const socket = net.createConnection({ path: socketPath });
+  const socket = net.createConnection({ path: localSocketEndpointFor(socketPath) });
   socket.setNoDelay(true);
 
   const cleanup = () => {
@@ -173,7 +184,7 @@ class EventConnection {
   ) {}
 
   async open(subscriptions: Subscription[]): Promise<void> {
-    const socket = net.createConnection({ path: this.socketPath });
+    const socket = net.createConnection({ path: localSocketEndpointFor(this.socketPath) });
     socket.setNoDelay(true);
 
     try {

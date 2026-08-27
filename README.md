@@ -13,7 +13,7 @@ Herdr remains responsible for running and arranging the agent terminals.
 ### Requirements
 
 - Node.js 20 or later
-- Herdr 0.8.0 or later, running on Linux or macOS
+- Herdr 0.8.2 or later
 - A Herdr pane: run the installer from inside a Herdr session
 
 Install from source:
@@ -24,6 +24,25 @@ cd herdr-a2a
 node scripts/install.mjs
 ```
 
+On Windows, from PowerShell:
+
+```powershell
+git clone https://github.com/IsaiasZc/herdr-a2a.git
+cd herdr-a2a
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+
+The Windows installer uses only your user profile: it creates a `herdr-a2a.cmd`
+launcher under `%LOCALAPPDATA%\herdr-a2a\bin`, adds that directory to your user
+`PATH`, and uses directory junctions for agent skills. Open a new terminal after
+installation. Herdr uses a Windows named pipe for `HERDR_SOCKET_PATH`; the
+gateway maps it to Node's named-pipe namespace automatically.
+
+Both installers preserve pre-existing files, links, and plugin registrations
+that do not belong to the current checkout instead of replacing them silently.
+If an existing `herdr-a2a` installation conflicts, remove or unlink it explicitly
+before installing this checkout.
+
 The installer is safe to run again. It links the Herdr plugin, installs the
 `herdr-a2a` command on your `PATH`, and makes the delegation skill available to
 installed coding agents. It also starts the gateway for the current session.
@@ -32,6 +51,14 @@ Check that everything is ready:
 
 ```bash
 node scripts/install.mjs status
+herdr-a2a doctor
+herdr-a2a discover
+```
+
+On Windows, use the same installer with `status`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1 status
 herdr-a2a doctor
 herdr-a2a discover
 ```
@@ -101,10 +128,22 @@ git pull
 node scripts/install.mjs
 ```
 
+On Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+
 Remove the links created by the installer without deleting the repository:
 
 ```bash
 node scripts/install.mjs uninstall
+```
+
+On Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1 uninstall
 ```
 
 ## Troubleshooting
@@ -112,6 +151,7 @@ node scripts/install.mjs uninstall
 | Problem | What to do |
 | --- | --- |
 | `herdr-a2a: command not found` | Add `~/.local/bin` or `~/bin` to your `PATH`, or run `./bin/herdr-a2a` from the repository. |
+| Existing `herdr-a2a` link/plugin is reported as a conflict | Remove or unlink the old installation explicitly, then rerun the installer. The installer will not overwrite it automatically. |
 | No gateway for this Herdr session | Confirm you are in a Herdr pane, run `herdr plugin list`, then run the installer again. |
 | Cannot reach the gateway | Restart Herdr, or run `node dist/main.js serve`. You can also supply `--base-url` or set `HERDR_A2A_URL`. |
 | `discover` shows no agents | Run `herdr-a2a doctor`; the agent may be installed but unavailable on `PATH`. |
@@ -149,8 +189,9 @@ For the Herdr behavior verified by this project, see
 ### Tests
 
 ```bash
+npm run typecheck
 npm test
-npx vitest run tests/integration
+npm run test:integration
 ```
 
 Unit tests do not require a live Herdr instance. Integration tests do.

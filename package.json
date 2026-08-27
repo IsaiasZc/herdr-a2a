@@ -1,6 +1,6 @@
 {
   "name": "herdr-a2a",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "description": "A2A v1.0 delegation layer for coding agents running under Herdr",

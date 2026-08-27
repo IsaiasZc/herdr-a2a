@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { localSocketEndpointFor } from "../../src/herdr/socket-client.js";
+
 const execFile = promisify(execFileCallback);
 
 const BIN = process.env["HERDR_BIN_PATH"] ?? "herdr";
@@ -45,7 +47,9 @@ export function herdrAvailable(): boolean {
 
 /**
  * `herdr --session <name> server` starts a detached headless server whose API
- * socket lives under `~/.config/herdr/sessions/<name>/`. Verified against 0.8.0.
+ * socket lives under `~/.config/herdr/sessions/<name>/`. The server command is
+ * normally launched by Herdr's client, which supplies `HERDR_STARTUP_CWD` to
+ * seed the first workspace/tab/pane; the harness must provide it itself.
  */
 export async function startTestSession(label: string): Promise<TestSession> {
   const name = `a2a-it-${label}-${process.pid}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 31);
@@ -53,6 +57,7 @@ export async function startTestSession(label: string): Promise<TestSession> {
   const child = spawn(BIN, ["--session", name, "server"], {
     detached: true,
     stdio: "ignore",
+    env: { ...process.env, HERDR_STARTUP_CWD: process.cwd() },
   });
   child.unref();
 
@@ -104,7 +109,7 @@ export function request(
   return import("node:net").then(
     (net) =>
       new Promise((resolve, reject) => {
-        const socket = net.createConnection(socketPath);
+        const socket = net.createConnection(localSocketEndpointFor(socketPath));
         let buffer = "";
         const timer = setTimeout(() => {
           socket.destroy();

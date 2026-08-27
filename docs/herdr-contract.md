@@ -14,7 +14,10 @@ documentation. Re-run `scripts/capture-contract.mjs` to refresh.
 
 ## 1. Transport
 
-Newline-delimited JSON over a Unix domain socket. No length framing, no HTTP.
+Newline-delimited JSON over a local socket. No length framing, no HTTP: Unix
+domain sockets on Linux/macOS and Windows named pipes on Windows. The raw Node
+client maps Herdr's Windows marker path from `HERDR_SOCKET_PATH` into Node's
+`\\.\pipe\...` namespace before connecting.
 
 Request:
 
@@ -441,9 +444,9 @@ Required top-level keys, discovered by letting the parser reject each attempt in
 ```toml
 id = "herdr-a2a"                 # required — the plugin_id
 name = "herdr-a2a"               # required
-version = "0.0.1"                # required
+version = "0.0.2"                # required
 min_herdr_version = "0.8.0"      # required
-platforms = ["linux", "macos"]   # optional; must not be an empty array if present
+platforms = ["linux", "macos", "windows"] # optional; must not be an empty array if present
 ```
 
 Omitting `platforms` is legal but produces the warning "manifest does not declare platforms;

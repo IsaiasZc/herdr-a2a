@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -58,19 +58,22 @@ describe("gateway discovery files", () => {
     const first = discoveryPathFor(socketA);
     expect(first).toBe(discoveryPathFor(socketA));
     expect(first).not.toBe(discoveryPathFor(socketB));
-    expect(first).toMatch(new RegExp(`^${dir}/herdr-a2a/[0-9a-f]{12}\\.json$`));
+    expect(dirname(first)).toBe(join(dir, "herdr-a2a"));
+    expect(basename(first)).toMatch(/^[0-9a-f]{12}\.json$/);
   });
 
   it("falls back to the operating-system temp directory without XDG_RUNTIME_DIR", () => {
     delete process.env.XDG_RUNTIME_DIR;
-    expect(discoveryPathFor(socketA)).toMatch(new RegExp(`^${tmpdir()}/herdr-a2a/[0-9a-f]{12}\\.json$`));
+    const first = discoveryPathFor(socketA);
+    expect(dirname(first)).toBe(join(tmpdir(), "herdr-a2a"));
+    expect(basename(first)).toMatch(/^[0-9a-f]{12}\.json$/);
   });
 
   it("atomically round-trips a descriptor without leaving a temporary sibling", () => {
     const value = descriptor();
     writeDescriptor(socketA, value);
 
-    expect(readDescriptor(socketA)).toEqual(value);
+    expect(readDescriptor(socketA)).toEqual({ ...value, herdrSocketPath: resolve(socketA) });
     const parent = join(dir, "herdr-a2a");
     expect(readdirSync(parent).filter((name) => name.endsWith(".tmp"))).toEqual([]);
   });
